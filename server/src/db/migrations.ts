@@ -267,6 +267,35 @@ const MIGRATIONS: string[] = [
   -- Cada horário agendado roda no máximo uma vez.
   CREATE UNIQUE INDEX idx_routine_runs_slot ON routine_runs(routine_id, scheduled_for) WHERE trigger = 'schedule';
   CREATE INDEX idx_routine_runs_routine ON routine_runs(routine_id, id);
+  `,
+  // Fase 6: revisão automática dos PRs no GitHub, no Claude do autor de cada PR.
+  `
+  ALTER TABLE users ADD COLUMN github_login TEXT;
+  CREATE UNIQUE INDEX idx_users_github_login ON users(lower(github_login)) WHERE github_login IS NOT NULL;
+  ALTER TABLE projects ADD COLUMN pr_review INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE pr_reviews (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    head_sha TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    author_login TEXT NOT NULL,
+    reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL CHECK (status IN ('waiting', 'running', 'posted', 'failed', 'skipped')),
+    verdict TEXT CHECK (verdict IN ('approve', 'request_changes', 'comment')),
+    summary TEXT,
+    counts TEXT,
+    review_url TEXT,
+    chat_id INTEGER REFERENCES chats(id) ON DELETE SET NULL,
+    error TEXT,
+    trigger TEXT NOT NULL CHECK (trigger IN ('auto', 'manual')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (project_id, number, head_sha)
+  );
+  CREATE INDEX idx_pr_reviews_project ON pr_reviews(project_id, id);
   `
 ]
 

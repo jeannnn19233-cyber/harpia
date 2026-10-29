@@ -32,6 +32,10 @@ export interface AppConfig {
   // ao mesmo tempo no servidor todo.
   routineTickSeconds: number
   maxConcurrentRuns: number
+  // Revisão de PRs: intervalo entre as olhadas no GitHub (0 desliga) e quanto tempo o PR precisa
+  // ficar sem commits novos antes da revisão.
+  reviewPollSeconds: number
+  reviewSettleSeconds: number
 }
 
 export interface AppContext {

@@ -22,6 +22,8 @@ export interface AgentSystem {
     branch: string
   }>
   homeDir(user: User): string
+  // Cópia (na pasta da pessoa) do commit de um PR, para o revisor ler. Devolve o caminho.
+  prepareReviewCheckout(input: { user: User; project: Project; mirrorPath: string; number: number; sha: string }): Promise<string>
   // Cria (como a pessoa) uma pasta dentro da pasta dela e devolve o caminho. Usada pelas conversas fora das tasks.
   prepareFolder(user: User, relativePath: string): Promise<string>
   // command null abre só o shell.

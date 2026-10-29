@@ -7,6 +7,7 @@ import type {
   Chat,
   ChatItem,
   ChatModel,
+  PrReview,
   Routine,
   RoutineRun,
   ChatProvider,
@@ -110,6 +111,13 @@ export const api = {
   deleteChat: (id: number) => request<{ ok: true }>('DELETE', `/api/chats/${id}`),
   models: (provider: ChatProvider) =>
     request<{ models: ChatModel[]; error: string | null }>('GET', `/api/me/models?provider=${provider}`),
+  updateMe: (input: { githubLogin: string | null }) => request<{ user: User }>('PATCH', '/api/me', input),
+  reviews: (projectId: number) => request<{ reviews: PrReview[]; github: boolean }>('GET', `/api/projects/${projectId}/reviews`),
+  setProjectReview: (projectId: number, enabled: boolean) =>
+    request<{ project: Project }>('PUT', `/api/projects/${projectId}/review`, { enabled }),
+  requestReview: (projectId: number, number: number) =>
+    request<{ review: PrReview }>('POST', `/api/projects/${projectId}/reviews`, { number }),
+  checkReviews: (projectId: number) => request<{ reviews: PrReview[] }>('POST', `/api/projects/${projectId}/reviews/check`, {}),
   routines: () => request<{ routines: Routine[] }>('GET', '/api/routines'),
   createRoutine: (input: RoutineInput) => request<{ routine: Routine }>('POST', '/api/routines', input),
   updateRoutine: (id: number, input: Partial<RoutineInput>) => request<{ routine: Routine }>('PATCH', `/api/routines/${id}`, input),

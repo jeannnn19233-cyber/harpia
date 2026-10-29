@@ -160,6 +160,12 @@ export class LinuxAgentSystem implements AgentSystem {
     return new UserGit((args) => this.asUser(user, args), this.homeDir(user))
   }
 
+  async prepareReviewCheckout(input: { user: User; project: Project; mirrorPath: string; number: number; sha: string }) {
+    await this.prepareUser(input.user)
+    await this.markSafe(input.mirrorPath)
+    return this.userGit(input.user).prepareReviewCheckout(input)
+  }
+
   async prepareWorktree(input: { user: User; project: Project; task: Task; mirrorPath: string }) {
     await this.markSafe(input.mirrorPath)
     return this.userGit(input.user).prepareWorktree(input)

@@ -10,7 +10,29 @@ export interface PullRequestInfo {
   merged: boolean
 }
 
+// PR aberto, como a lista do GitHub mostra (usado pela revisão automática).
+export interface OpenPullRequest {
+  number: number
+  title: string
+  url: string
+  body: string
+  draft: boolean
+  authorLogin: string
+  headSha: string
+  baseRef: string
+  labels: string[]
+}
+
+export interface ReviewComment {
+  path: string
+  line: number
+  body: string
+}
+
 export interface GitHubClient {
+  listOpenPullRequests(repo: GitHubRepo): Promise<OpenPullRequest[]>
+  // Publica uma revisão no commit indicado. Sempre como comentário: a aprovação é de uma pessoa.
+  createReview(repo: GitHubRepo, number: number, input: { commitId: string; body: string; comments: ReviewComment[] }): Promise<{ url: string }>
   createPullRequest(repo: GitHubRepo, input: { title: string; body: string; head: string; base: string }): Promise<PullRequestInfo>
   // PR aberto a partir de uma branch, se já existir.
   findOpenPullRequest(repo: GitHubRepo, head: string): Promise<PullRequestInfo | null>
@@ -32,6 +54,13 @@ interface ApiPullRequest {
   state: 'open' | 'closed'
   merged?: boolean
   merged_at?: string | null
+  title?: string
+  body?: string | null
+  draft?: boolean
+  user?: { login: string } | null
+  head?: { sha: string }
+  base?: { ref: string }
+  labels?: { name: string }[]
 }
 
 function toInfo(pr: ApiPullRequest): PullRequestInfo {
@@ -66,6 +95,29 @@ export function createGitHubClient(options: { token: string | null; apiUrl?: str
   }
 
   return {
+    async listOpenPullRequests(repo) {
+      const list = await call<ApiPullRequest[]>('GET', `/repos/${repo.owner}/${repo.name}/pulls?state=open&per_page=50&sort=updated&direction=desc`)
+      return list.map((pr) => ({
+        number: pr.number,
+        title: pr.title ?? '',
+        url: pr.html_url,
+        body: pr.body ?? '',
+        draft: pr.draft === true,
+        authorLogin: pr.user?.login ?? '',
+        headSha: pr.head?.sha ?? '',
+        baseRef: pr.base?.ref ?? '',
+        labels: (pr.labels ?? []).map((label) => label.name)
+      }))
+    },
+    async createReview(repo, number, input) {
+      const review = await call<{ html_url: string }>('POST', `/repos/${repo.owner}/${repo.name}/pulls/${number}/reviews`, {
+        commit_id: input.commitId,
+        event: 'COMMENT',
+        body: input.body,
+        comments: input.comments.map((comment) => ({ path: comment.path, line: comment.line, side: 'RIGHT', body: comment.body }))
+      })
+      return { url: review.html_url }
+    },
     async createPullRequest(repo, input) {
       return toInfo(await call<ApiPullRequest>('POST', `/repos/${repo.owner}/${repo.name}/pulls`, input))
     },

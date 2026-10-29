@@ -23,8 +23,7 @@ export class UserGit {
 
   // Clona o espelho para a pasta da pessoa (uma vez por projeto) e cria a worktree da task
   // numa branch só dela, a partir da branch principal.
-  async prepareWorktree(input: { user: User; project: Project; task: Task; mirrorPath: string }) {
-    const { user, project, task, mirrorPath } = input
+  private async ensureClone(project: Project, mirrorPath: string): Promise<string> {
     const clone = join(this.home, 'projects', project.slug)
     if (existsSync(join(clone, '.git'))) {
       await this.git(clone, 'fetch', '--quiet', '--prune', 'origin')
@@ -32,6 +31,28 @@ export class UserGit {
       await this.run(['mkdir', '-p', dirname(clone)])
       await this.run(['git', 'clone', '--quiet', '--no-checkout', mirrorPath, clone])
     }
+    return clone
+  }
+
+  // Cópia do commit de um PR, só para leitura do revisor. Recriada a cada revisão.
+  async prepareReviewCheckout(input: { project: Project; mirrorPath: string; number: number; sha: string }): Promise<string> {
+    const clone = await this.ensureClone(input.project, input.mirrorPath)
+    const ref = `refs/harpia/pull/${input.number}`
+    await this.git(clone, 'fetch', '--quiet', 'origin', `+${ref}:${ref}`)
+    const path = join(this.home, 'revisoes', input.project.slug, `pr-${input.number}`)
+    if (existsSync(path)) {
+      await this.git(clone, 'worktree', 'remove', '--force', path).catch(() => undefined)
+      await this.run(['rm', '-rf', path])
+    }
+    await this.git(clone, 'worktree', 'prune')
+    await this.run(['mkdir', '-p', dirname(path)])
+    await this.git(clone, 'worktree', 'add', '--quiet', '--detach', path, input.sha)
+    return path
+  }
+
+  async prepareWorktree(input: { user: User; project: Project; task: Task; mirrorPath: string }) {
+    const { user, project, task, mirrorPath } = input
+    const clone = await this.ensureClone(project, mirrorPath)
 
     const firstName = slugify(user.name.split(/\s+/)[0] ?? 'pessoa')
     const branch = `harpia/T-${task.number}-${firstName}-${user.id}`

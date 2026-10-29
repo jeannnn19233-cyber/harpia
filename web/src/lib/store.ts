@@ -5,6 +5,7 @@ import type {
   Chat,
   ChatItem,
   Finding,
+  PrReview,
   Project,
   PullRequest,
   RealtimeMessage,
@@ -37,6 +38,7 @@ interface HarpiaState {
   pulls: Record<number, PullRequest>
   findings: Record<number, Finding>
   routines: Record<number, Routine>
+  reviews: Record<number, PrReview>
   // Execuções de cada rotina já carregada (mais recentes primeiro).
   routineRuns: Record<number, RoutineRun[]>
 
@@ -57,6 +59,7 @@ interface HarpiaState {
   setChatItems(chatId: number, items: ChatItem[]): void
   upsertPulls(pulls: PullRequest[]): void
   upsertFindings(findings: Finding[]): void
+  upsertReviews(reviews: PrReview[]): void
   setRoutines(routines: Routine[]): void
   upsertRoutine(routine: Routine): void
   setRoutineRuns(routineId: number, runs: RoutineRun[]): void
@@ -108,6 +111,7 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   pulls: {},
   findings: {},
   routines: {},
+  reviews: {},
   routineRuns: {},
 
   setView: (view) => {
@@ -153,6 +157,8 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   upsertChats: (chats) =>
     set((state) => ({ chats: { ...state.chats, ...Object.fromEntries(chats.map((chat) => [chat.id, chat])) } })),
   setChatItems: (chatId, items) => set((state) => ({ chatItems: { ...state.chatItems, [chatId]: items } })),
+  upsertReviews: (reviews) =>
+    set((state) => ({ reviews: { ...state.reviews, ...Object.fromEntries(reviews.map((review) => [review.id, review])) } })),
   setRoutines: (routines) => set({ routines: Object.fromEntries(routines.map((routine) => [routine.id, routine])) }),
   upsertRoutine: (routine) => set((state) => ({ routines: { ...state.routines, [routine.id]: routine } })),
   setRoutineRuns: (routineId, runs) => set((state) => ({ routineRuns: { ...state.routineRuns, [routineId]: runs } })),
@@ -190,6 +196,9 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
         break
       case 'routine':
         state.upsertRoutine(message.routine)
+        break
+      case 'pr_review':
+        state.upsertReviews([message.review])
         break
       case 'routine_removed': {
         const { [message.routineId]: _routine, ...routines } = state.routines

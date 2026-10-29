@@ -11,6 +11,7 @@ interface ProjectRow {
   clone_error: string | null
   created_by: number
   created_at: string
+  pr_review: number
 }
 
 function toProject(row: ProjectRow): Project {
@@ -23,7 +24,8 @@ function toProject(row: ProjectRow): Project {
     cloneStatus: row.clone_status,
     cloneError: row.clone_error,
     createdBy: row.created_by,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    prReview: row.pr_review === 1
   }
 }
 
@@ -35,6 +37,11 @@ export function listProjects(db: Db): Project[] {
 export function getProject(db: Db, id: number): Project | null {
   const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow | undefined
   return row ? toProject(row) : null
+}
+
+export function setProjectReview(db: Db, id: number, enabled: boolean): Project | null {
+  db.prepare('UPDATE projects SET pr_review = ? WHERE id = ?').run(enabled ? 1 : 0, id)
+  return getProject(db, id)
 }
 
 export function slugify(name: string): string {

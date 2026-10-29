@@ -8,10 +8,22 @@ interface UserRow {
   role: UserRole
   created_at: string
   password_hash: string
+  github_login: string | null
 }
 
 function toUser(row: UserRow): User {
-  return { id: row.id, name: row.name, email: row.email, role: row.role, createdAt: row.created_at }
+  return { id: row.id, name: row.name, email: row.email, role: row.role, githubLogin: row.github_login, createdAt: row.created_at }
+}
+
+// Pessoa da equipe dona de um usuário do GitHub (sem diferenciar maiúsculas).
+export function findUserByGitHubLogin(db: Db, login: string): User | null {
+  const row = db.prepare('SELECT * FROM users WHERE lower(github_login) = lower(?)').get(login) as UserRow | undefined
+  return row ? toUser(row) : null
+}
+
+export function setGitHubLogin(db: Db, userId: number, login: string | null): User | null {
+  db.prepare('UPDATE users SET github_login = ? WHERE id = ?').run(login, userId)
+  return getUser(db, userId)
 }
 
 export function countUsers(db: Db): number {

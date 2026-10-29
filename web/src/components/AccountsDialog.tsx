@@ -1,10 +1,49 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentAccounts } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
+import { useHarpia } from '../lib/store.ts'
 import { Dialog } from './Dialogs.tsx'
 import { TerminalView, type TerminalControls } from './TerminalView.tsx'
 
 // "Minhas IAs": cada pessoa conecta a própria conta do Claude Code e do Codex no servidor.
+// Usuário do GitHub: os PRs da pessoa são revisados no Claude dela.
+function GitHubLogin() {
+  const { me, setMe } = useHarpia()
+  const [value, setValue] = useState(me?.githubLogin ?? '')
+  const [state, setState] = useState<{ error: string | null; saved: boolean }>({ error: null, saved: false })
+  const save = async () => {
+    try {
+      const { user } = await api.updateMe({ githubLogin: value.trim() || null })
+      setMe(user)
+      setState({ error: null, saved: true })
+    } catch (err) {
+      setState({ error: (err as Error).message, saved: false })
+    }
+  }
+  return (
+    <div className="mb-4 rounded-lg border border-zinc-800 px-4 py-3">
+      <p className="text-sm font-medium">Seu usuário do GitHub</p>
+      <p className="mb-2 text-xs text-zinc-400">Os seus PRs são revisados automaticamente no seu Claude (veja "Revisões" no quadro).</p>
+      <div className="flex gap-2">
+        <input
+          className="input max-w-60"
+          value={value}
+          placeholder="ex.: ana-souza"
+          onChange={(e) => {
+            setValue(e.target.value)
+            setState({ error: null, saved: false })
+          }}
+        />
+        <button className="btn-outline py-1.5" onClick={() => void save()} disabled={(me?.githubLogin ?? '') === value.trim()}>
+          Salvar
+        </button>
+        {state.saved && <span className="self-center text-xs text-emerald-400">Salvo</span>}
+      </div>
+      {state.error && <p className="mt-1 text-xs text-rose-400">{state.error}</p>}
+    </div>
+  )
+}
+
 export function AccountsDialog({ onClose }: { onClose: () => void }) {
   const [accounts, setAccounts] = useState<AgentAccounts | null>(null)
   const [sessionId, setSessionId] = useState<number | null>(null)
@@ -35,6 +74,7 @@ export function AccountsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog title="Minhas IAs" onClose={onClose} wide>
+      <GitHubLogin />
       <div className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-zinc-800 px-4 py-3">
           <p className="text-sm font-medium">Claude Code</p>

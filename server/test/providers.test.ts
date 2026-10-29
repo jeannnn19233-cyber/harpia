@@ -32,7 +32,7 @@ function recorder(decision: 'allow' | 'deny' = 'allow') {
 }
 
 const fakeServer = fileURLToPath(new URL('./fixtures/fake-codex-app-server.mjs', import.meta.url))
-const user = { id: 1, name: 'Ana', email: 'ana@x.com', role: 'admin' as const, createdAt: '' }
+const user = { id: 1, name: 'Ana', email: 'ana@x.com', role: 'admin' as const, githubLogin: null, createdAt: '' }
 
 function codexWith(decision: 'allow' | 'deny', resumeId: string | null = null, model: string | null = null) {
   const record = recorder(decision)

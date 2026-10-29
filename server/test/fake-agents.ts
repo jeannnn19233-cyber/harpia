@@ -30,6 +30,12 @@ export class FakeAgentSystem implements AgentSystem {
     return `/fake/${user.id}`
   }
 
+  readonly checkouts: { user: number; number: number; sha: string }[] = []
+  async prepareReviewCheckout(input: { user: User; project: Project; number: number; sha: string }): Promise<string> {
+    this.checkouts.push({ user: input.user.id, number: input.number, sha: input.sha })
+    return `/fake/${input.user.id}/revisoes/${input.project.slug}/pr-${input.number}`
+  }
+
   readonly folders: string[] = []
   async prepareFolder(user: User, relativePath: string): Promise<string> {
     this.preparedUsers.add(user.id)

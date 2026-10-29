@@ -27,6 +27,8 @@ import { registerProjectRoutes } from './projects/routes.ts'
 import { RealtimeHub } from './realtime/hub.ts'
 import { registerRealtimeRoutes } from './realtime/routes.ts'
 import { registerTaskRoutes } from './tasks/routes.ts'
+import { registerReviewRoutes } from './reviews/routes.ts'
+import { PrReviewer } from './reviews/reviewer.ts'
 import { registerRoutineRoutes } from './routines/routes.ts'
 import { RoutineRunner } from './routines/runner.ts'
 import { registerWatcherRoutes } from './watcher/routes.ts'
@@ -69,6 +71,7 @@ function databaseFile(dataDir: string): string {
 export interface AppServices {
   chat: ChatManager
   routines: RoutineRunner
+  reviews: PrReviewer
 }
 
 export async function buildApp(options: BuildOptions): Promise<{ app: FastifyInstance; ctx: AppContext; services: AppServices }> {
@@ -130,6 +133,13 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     ...options.routineLimits
   })
   registerRoutineRoutes(app, ctx, routines)
+  const reviews = new PrReviewer(ctx, chat, {
+    pollSeconds: options.config.reviewPollSeconds,
+    settleSeconds: options.config.reviewSettleSeconds,
+    maxConcurrent: 2,
+    inactivityMs: options.routineLimits?.inactivityMs
+  })
+  registerReviewRoutes(app, ctx, reviews)
   registerPullRoutes(app, ctx)
   registerWatcherRoutes(
     app,
@@ -158,5 +168,5 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     ctx.db.close()
   })
 
-  return { app, ctx, services: { chat, routines } }
+  return { app, ctx, services: { chat, routines, reviews } }
 }

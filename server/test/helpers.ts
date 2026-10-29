@@ -21,6 +21,12 @@ export interface TestServer {
 
 // Por padrão, os testes nunca falam com o GitHub de verdade.
 export const offlineGitHub: GitHubClient = {
+  async listOpenPullRequests() {
+    return []
+  },
+  async createReview() {
+    throw new Error('Este teste não configurou o GitHub.')
+  },
   async createPullRequest() {
     throw new Error('Este teste não configurou o GitHub.')
   },
@@ -42,7 +48,13 @@ export const fakeGit: GitRunner = {
     return true
   },
   async importBundle() {},
-  async push() {}
+  async push() {},
+  async fetchPull() {
+    return 'abc123'
+  },
+  async diff() {
+    return ''
+  }
 }
 
 export async function startServer(
@@ -77,6 +89,8 @@ export async function startServer(
       watcherIntervalSeconds: 3600,
       routineTickSeconds: 0,
       maxConcurrentRuns: 3,
+      reviewPollSeconds: 0,
+      reviewSettleSeconds: 0,
       staleHours: 48,
       reviewHours: 24
     },

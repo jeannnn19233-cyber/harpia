@@ -18,6 +18,21 @@ const scripted: ProviderFactory = (input) => {
       turn++
       const id = turn
       // Execução automática (rotina): responde sozinho, sem pedir aprovação.
+      if (input.policy && input.instructions?.includes('revisor de código')) {
+        void (async () => {
+          input.hooks.onToolStart(`rd${id}`, 'Read', 'src/pix.ts')
+          await sleep(300)
+          input.hooks.onToolEnd(`rd${id}`, true, 'export function total(valor) {…}')
+          const review = {
+            verdict: 'request_changes',
+            summary: 'Adiciona o cálculo do Pix. Falta validar valor negativo.',
+            findings: [{ path: 'src/pix.ts', line: 2, severity: 'warning', title: 'Valor negativo aceito', body: 'O `valor` pode ser negativo.' }]
+          }
+          input.hooks.onTextDone(`rv${id}`, '```json\n' + JSON.stringify(review) + '\n```')
+          input.hooks.onTurnEnd(null)
+        })()
+        return
+      }
       if (input.policy) {
         void (async () => {
           input.hooks.onSession(`sessao-${input.user.id}`)
@@ -69,6 +84,25 @@ const dataDir = resolve(process.argv[2] ?? mkdtempSync(join(tmpdir(), 'harpia-e2
 // GitHub de mentira: o PR "tem merge" quando existe o arquivo merge-<número> na pasta de dados.
 let nextPull = 41
 const github: GitHubClient = {
+  // Um PR aberto por @ana-dev, para a revisão automática.
+  async listOpenPullRequests() {
+    return [
+      {
+        number: 42,
+        title: 'Pagamento com Pix',
+        url: 'https://github.com/clarumi/loja/pull/42',
+        body: 'Adiciona o Pix.',
+        draft: false,
+        authorLogin: 'ana-dev',
+        headSha: 'abc1234def5678',
+        baseRef: 'main',
+        labels: []
+      }
+    ]
+  },
+  async createReview() {
+    return { url: 'https://github.com/clarumi/loja/pull/1#pullrequestreview-1' }
+  },
   async createPullRequest() {
     nextPull++
     return { number: nextPull, url: `https://github.com/clarumi/loja/pull/${nextPull}`, state: 'open', merged: false }
@@ -103,6 +137,8 @@ const { app } = await buildApp({
     watcherIntervalSeconds: 3600,
     routineTickSeconds: 5,
     maxConcurrentRuns: 3,
+    reviewPollSeconds: 0,
+    reviewSettleSeconds: 0,
     staleHours: 48,
     reviewHours: 24
   },
@@ -122,7 +158,12 @@ const { app } = await buildApp({
           { id: 'sonnet', label: 'Sonnet', description: 'Equilibrado' }
         ]
       : [{ id: 'gpt-codex', label: 'GPT Codex', description: 'Para programar' }],
-  git: fakeGit
+  git: {
+    ...fakeGit,
+    fetchPull: async () => 'abc1234def5678',
+    diff: async () =>
+      ['diff --git a/src/pix.ts b/src/pix.ts', '--- a/src/pix.ts', '+++ b/src/pix.ts', '@@ -1 +1,3 @@', ' export const taxa = 0', '+export function total(valor) {', '+  return valor - taxa }'].join('\n')
+  }
 })
 await app.listen({ host: '127.0.0.1', port: Number(process.env.PORT ?? 7421) })
 console.log('pronto')

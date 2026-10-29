@@ -74,6 +74,12 @@ class FakeGitHub implements GitHubClient {
   async findOpenPullRequest() {
     return null
   }
+  async listOpenPullRequests() {
+    return []
+  }
+  async createReview(): Promise<{ url: string }> {
+    throw new Error('sem revisão neste teste')
+  }
   async getPullRequest(_repo: unknown, number: number) {
     return { number, url: `https://github.com/clarumi/loja/pull/${number}`, ...this.states.get(number)! }
   }

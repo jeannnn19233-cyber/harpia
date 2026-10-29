@@ -11,6 +11,10 @@ export interface GitRunner {
   importBundle(repoPath: string, bundlePath: string, branch: string): Promise<void>
   // Envia a branch do espelho para o repositório remoto (GitHub).
   push(repoPath: string, remoteUrl: string, branch: string): Promise<void>
+  // Traz o commit de um PR (refs/pull/N/head) para o espelho, em refs/harpia/pull/N. Devolve o SHA.
+  fetchPull(repoPath: string, number: number): Promise<string>
+  // Diff do PR: da base comum com a branch principal até o commit do PR.
+  diff(repoPath: string, base: string, sha: string): Promise<string>
 }
 
 // Com HARPIA_GITHUB_TOKEN definido, o git usa esse token para repositórios privados do GitHub.
@@ -58,6 +62,13 @@ export const systemGit: GitRunner = {
   },
   async push(repoPath, remoteUrl, branch) {
     await run(['push', '--quiet', remoteUrl, `refs/heads/${branch}:refs/heads/${branch}`], repoPath)
+  },
+  async fetchPull(repoPath, number) {
+    await run(['fetch', '--quiet', 'origin', `+refs/pull/${number}/head:refs/harpia/pull/${number}`], repoPath)
+    return run(['rev-parse', `refs/harpia/pull/${number}`], repoPath)
+  },
+  async diff(repoPath, base, sha) {
+    return run(['diff', '--no-color', '--no-ext-diff', '--find-renames', `refs/heads/${base}...${sha}`], repoPath)
   },
   async branchExists(repoPath, branch) {
     try {

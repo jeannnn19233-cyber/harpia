@@ -7,6 +7,7 @@ import { AccountsDialog } from './AccountsDialog.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Board } from './Board.tsx'
 import { Conversations } from './chat/Conversations.tsx'
+import { ReviewsDialog } from './reviews/ReviewsDialog.tsx'
 import { Routines } from './routines/Routines.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
 import { MemoryDialog, useOpenFindings, WatcherDialog } from './Watcher.tsx'
@@ -34,7 +35,7 @@ function CloneBadge({ project }: { project: Project }) {
 export function Workspace({ onLogout }: { onLogout: () => void }) {
   const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus, view, setView } =
     useHarpia()
-  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | null>(null)
+  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | 'reviews' | null>(null)
   const openFindings = useOpenFindings(projectId)
 
   useEffect(() => startRealtime(), [])
@@ -114,6 +115,12 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
             ))}
           </div>
           {view === 'board' && projectId && (
+            <button className="btn-ghost py-1.5" onClick={() => setDialog('reviews')} title="Revisão automática dos PRs no GitHub">
+              Revisões
+              {project?.prReview && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+            </button>
+          )}
+          {view === 'board' && projectId && (
             <button className="btn-ghost py-1.5" onClick={() => setDialog('watcher')}>
               Vigia
               {openFindings.length > 0 && (
@@ -162,6 +169,7 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
       {dialog === 'team' && <TeamDialog onClose={() => setDialog(null)} />}
       {dialog === 'accounts' && <AccountsDialog onClose={() => setDialog(null)} />}
       {dialog === 'watcher' && projectId && <WatcherDialog projectId={projectId} onClose={() => setDialog(null)} />}
+      {dialog === 'reviews' && projectId && <ReviewsDialog projectId={projectId} onClose={() => setDialog(null)} />}
       {dialog === 'memory' && projectId && <MemoryDialog projectId={projectId} onClose={() => setDialog(null)} />}
 
     </div>

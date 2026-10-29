@@ -30,6 +30,8 @@ const { app } = await buildApp({
     watcherIntervalSeconds: Number(process.env.HARPIA_WATCHER_INTERVAL_SECONDS ?? 300),
     routineTickSeconds: 30,
     maxConcurrentRuns: Number(process.env.HARPIA_MAX_CONCURRENT_RUNS ?? 3),
+    reviewPollSeconds: Number(process.env.HARPIA_REVIEW_POLL_SECONDS ?? 180),
+    reviewSettleSeconds: Number(process.env.HARPIA_REVIEW_SETTLE_SECONDS ?? 180),
     staleHours: Number(process.env.HARPIA_STALE_HOURS ?? 48),
     reviewHours: Number(process.env.HARPIA_REVIEW_HOURS ?? 24)
   },

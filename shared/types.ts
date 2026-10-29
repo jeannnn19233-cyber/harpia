@@ -17,6 +17,8 @@ export interface User {
   name: string
   email: string
   role: UserRole
+  // Usuário do GitHub, para o Harpia saber de quem é cada PR (revisão automática).
+  githubLogin: string | null
   createdAt: string
 }
 
@@ -32,6 +34,8 @@ export interface Project {
   cloneError: string | null
   createdBy: number
   createdAt: string
+  // Revisão automática dos PRs abertos no GitHub.
+  prReview: boolean
 }
 
 export interface Task {
@@ -57,6 +61,7 @@ export type TaskEventType =
   | 'pr_updated'
   | 'pr_merged'
   | 'pr_closed'
+  | 'pr_reviewed'
   | 'chat_started'
   | 'agent_started'
   | 'agent_stopped'
@@ -167,6 +172,45 @@ export interface Chat {
   origin: ChatOrigin
   createdAt: string
   updatedAt: string
+}
+
+// Revisão automática de um PR (um commit), feita pelo Claude do autor do PR.
+export type PrReviewStatus = 'waiting' | 'running' | 'posted' | 'failed' | 'skipped'
+export type PrReviewVerdict = 'approve' | 'request_changes' | 'comment'
+export type FindingSeverity = 'critical' | 'warning' | 'suggestion'
+
+export interface PrReviewCounts {
+  critical: number
+  warning: number
+  suggestion: number
+}
+
+export interface PrReview {
+  id: number
+  projectId: number
+  number: number
+  headSha: string
+  title: string
+  url: string
+  authorLogin: string
+  // De quem é o Claude que revisou (o autor do PR, ou quem pediu a revisão).
+  reviewerId: number | null
+  status: PrReviewStatus
+  verdict: PrReviewVerdict | null
+  summary: string | null
+  counts: PrReviewCounts | null
+  reviewUrl: string | null
+  chatId: number | null
+  error: string | null
+  trigger: 'auto' | 'manual'
+  createdAt: string
+  updatedAt: string
+}
+
+export const VERDICT_LABELS: Record<PrReviewVerdict, string> = {
+  approve: 'pode seguir',
+  request_changes: 'pedir mudanças',
+  comment: 'comentários'
 }
 
 // Rotina (cron): o agente da pessoa roda sozinho num horário e entrega o resultado.
@@ -339,6 +383,7 @@ export type RealtimeMessage =
   | { type: 'chat_item'; item: ChatItem }
   // A conversa deixou de estar visível para quem recebe (foi excluída ou deixou de ser compartilhada).
   | { type: 'chat_removed'; chatId: number }
+  | { type: 'pr_review'; review: PrReview }
   | { type: 'routine'; routine: Routine }
   | { type: 'routine_removed'; routineId: number }
   | { type: 'routine_run'; run: RoutineRun }
