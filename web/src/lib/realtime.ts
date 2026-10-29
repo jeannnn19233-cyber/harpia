@@ -20,6 +20,10 @@ export async function resync(): Promise<void> {
     store.upsertSessions((await api.runningSessions()).sessions)
     store.upsertChats((await api.activeChats()).chats)
     store.upsertChats((await api.generalChats()).chats)
+    store.setRoutines((await api.routines()).routines)
+    for (const routineId of Object.keys(useHarpia.getState().routineRuns).map(Number)) {
+      store.setRoutineRuns(routineId, (await api.routineRuns(routineId).catch(() => ({ runs: [] }))).runs)
+    }
   }
   // Conversas abertas na tela podem ter recebido mensagens enquanto a conexão estava fora.
   for (const chatId of Object.keys(useHarpia.getState().chatItems).map(Number)) {

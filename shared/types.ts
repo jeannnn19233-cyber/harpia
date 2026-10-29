@@ -145,6 +145,9 @@ export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
 // idle: esperando mensagem; working: trabalhando; waiting: esperando aprovação.
 export type ChatStatus = 'idle' | 'working' | 'waiting' | 'closed'
 
+// Quem abriu a conversa: a pessoa, uma rotina, a revisão de PR ou o agente pessoal no Telegram.
+export type ChatOrigin = 'user' | 'routine' | 'review' | 'telegram'
+
 export interface Chat {
   id: number
   taskId: number | null
@@ -161,9 +164,58 @@ export interface Chat {
   // Conversas fora das tasks são privadas; com shared, a equipe acompanha (só leitura).
   // Conversas de task são sempre visíveis para a equipe.
   shared: boolean
+  origin: ChatOrigin
   createdAt: string
   updatedAt: string
 }
+
+// Rotina (cron): o agente da pessoa roda sozinho num horário e entrega o resultado.
+export type RoutineFolder = 'routine' | 'vault'
+export type RoutineDeliver = 'telegram' | 'harpia'
+export type RoutineRunStatus = 'running' | 'ok' | 'silent' | 'failed' | 'skipped' | 'interrupted'
+
+export interface Routine {
+  id: number
+  userId: number
+  name: string
+  prompt: string
+  // Expressão cron de 5 campos (minuto hora dia mês dia-da-semana), no fuso da rotina.
+  schedule: string
+  timezone: string
+  // Pasta em que o agente trabalha: uma só da rotina ou o cofre da pessoa.
+  folder: RoutineFolder
+  // Pode buscar e ler páginas na web.
+  web: boolean
+  model: string | null
+  deliver: RoutineDeliver
+  // A execução anterior entra no contexto, para não repetir o que já foi dito.
+  continuity: boolean
+  enabled: boolean
+  nextRunAt: string | null
+  lastRunAt: string | null
+  lastStatus: RoutineRunStatus | null
+  lastError: string | null
+  failureStreak: number
+  holdUntil: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RoutineRun {
+  id: number
+  routineId: number
+  scheduledFor: string
+  trigger: 'schedule' | 'manual'
+  status: RoutineRunStatus
+  chatId: number | null
+  output: string | null
+  error: string | null
+  delivered: boolean
+  startedAt: string
+  finishedAt: string | null
+}
+
+export const ROUTINE_TIMEZONE = 'America/Sao_Paulo'
 
 // Modelo que a conta da pessoa oferece, como o Claude Code ou o Codex informam.
 export interface ChatModel {
@@ -287,6 +339,9 @@ export type RealtimeMessage =
   | { type: 'chat_item'; item: ChatItem }
   // A conversa deixou de estar visível para quem recebe (foi excluída ou deixou de ser compartilhada).
   | { type: 'chat_removed'; chatId: number }
+  | { type: 'routine'; routine: Routine }
+  | { type: 'routine_removed'; routineId: number }
+  | { type: 'routine_run'; run: RoutineRun }
   | { type: 'pull_request'; pullRequest: PullRequest }
   | { type: 'finding'; finding: Finding }
   | { type: 'memory'; memory: ProjectMemory }

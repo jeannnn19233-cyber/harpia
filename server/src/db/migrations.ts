@@ -213,6 +213,60 @@ const MIGRATIONS: string[] = [
   ALTER TABLE chats ADD COLUMN model TEXT;
   ALTER TABLE chats ADD COLUMN shared INTEGER NOT NULL DEFAULT 0;
   CREATE INDEX idx_chats_user ON chats(user_id, task_id);
+  `,
+  // Fase 6: rotinas (cron), revisão automática de PRs e o agente pessoal do Telegram com o cofre.
+  `
+  ALTER TABLE chats ADD COLUMN origin TEXT NOT NULL DEFAULT 'user';
+  ALTER TABLE chats ADD COLUMN policy TEXT;
+  ALTER TABLE chats ADD COLUMN instructions TEXT;
+
+  CREATE TABLE settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  CREATE TABLE routines (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    schedule TEXT NOT NULL,
+    timezone TEXT NOT NULL,
+    folder TEXT NOT NULL CHECK (folder IN ('routine', 'vault')),
+    web INTEGER NOT NULL DEFAULT 1,
+    model TEXT,
+    deliver TEXT NOT NULL CHECK (deliver IN ('telegram', 'harpia')),
+    continuity INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    cwd TEXT NOT NULL,
+    next_run_at TEXT,
+    last_run_at TEXT,
+    last_status TEXT,
+    last_error TEXT,
+    failure_streak INTEGER NOT NULL DEFAULT 0,
+    hold_until TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (user_id, name)
+  );
+  CREATE INDEX idx_routines_due ON routines(enabled, next_run_at);
+
+  CREATE TABLE routine_runs (
+    id INTEGER PRIMARY KEY,
+    routine_id INTEGER NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+    scheduled_for TEXT NOT NULL,
+    trigger TEXT NOT NULL CHECK (trigger IN ('schedule', 'manual')),
+    status TEXT NOT NULL CHECK (status IN ('running', 'ok', 'silent', 'failed', 'skipped', 'interrupted')),
+    chat_id INTEGER REFERENCES chats(id) ON DELETE SET NULL,
+    output TEXT,
+    error TEXT,
+    delivered INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT NOT NULL,
+    finished_at TEXT
+  );
+  -- Cada horário agendado roda no máximo uma vez.
+  CREATE UNIQUE INDEX idx_routine_runs_slot ON routine_runs(routine_id, scheduled_for) WHERE trigger = 'schedule';
+  CREATE INDEX idx_routine_runs_routine ON routine_runs(routine_id, id);
   `
 ]
 

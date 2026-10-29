@@ -7,7 +7,8 @@ export interface TelegramClient {
   getMe(): Promise<{ username: string }>
   // Espera até timeoutSeconds por mensagens novas (long polling).
   getUpdates(offset: number, timeoutSeconds: number): Promise<TelegramUpdate[]>
-  sendMessage(chatId: string, text: string): Promise<void>
+  // html: o texto já vem no HTML limitado do Telegram (veja format.ts).
+  sendMessage(chatId: string, text: string, options?: { html?: boolean }): Promise<void>
 }
 
 // Cliente da API de bots do Telegram (HARPIA_TELEGRAM_BOT_TOKEN, criado com o @BotFather).
@@ -27,8 +28,13 @@ export function createTelegramClient(token: string): TelegramClient {
     getMe: () => call('getMe', {}),
     getUpdates: (offset, timeoutSeconds) =>
       call('getUpdates', { offset, timeout: timeoutSeconds, allowed_updates: ['message'] }, (timeoutSeconds + 10) * 1000),
-    sendMessage: async (chatId, text) => {
-      await call('sendMessage', { chat_id: chatId, text, disable_web_page_preview: true })
+    sendMessage: async (chatId, text, options) => {
+      await call('sendMessage', {
+        chat_id: chatId,
+        text,
+        disable_web_page_preview: true,
+        ...(options?.html ? { parse_mode: 'HTML' } : {})
+      })
     }
   }
 }

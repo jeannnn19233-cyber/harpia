@@ -1,4 +1,5 @@
-import type { Chat, ChatItem, ChatItemKind, ChatProvider, ChatStatus, PermissionMode } from '../../../shared/types.ts'
+import type { Chat, ChatItem, ChatItemKind, ChatOrigin, ChatProvider, ChatStatus, PermissionMode } from '../../../shared/types.ts'
+import type { AutomationPolicy } from '../automation/policy.ts'
 import type { Db } from '../db/index.ts'
 
 interface ChatRow {
@@ -13,6 +14,9 @@ interface ChatRow {
   suggestion: string | null
   model: string | null
   shared: number
+  origin: ChatOrigin
+  policy: string | null
+  instructions: string | null
   branch: string | null
   cwd: string
   created_at: string
@@ -31,6 +35,9 @@ interface ItemRow {
 export interface StoredChat extends Chat {
   cwd: string
   providerSessionId: string | null
+  // Execuções automáticas: ferramentas e pastas fixas, e instruções próprias (só no servidor).
+  policy: AutomationPolicy | null
+  instructions: string | null
 }
 
 // Campos de cada tipo de item, sem os comuns (id, chatId, datas).
@@ -54,6 +61,9 @@ function toChat(row: ChatRow): StoredChat {
     suggestion: row.suggestion,
     model: row.model,
     shared: row.shared === 1,
+    origin: row.origin,
+    policy: row.policy ? (JSON.parse(row.policy) as AutomationPolicy) : null,
+    instructions: row.instructions,
     cwd: row.cwd,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -62,7 +72,7 @@ function toChat(row: ChatRow): StoredChat {
 
 // O caminho no servidor e o id interno do provedor não vão para a interface.
 export function publicChat(chat: StoredChat): Chat {
-  const { cwd: _cwd, providerSessionId: _providerSessionId, ...rest } = chat
+  const { cwd: _cwd, providerSessionId: _providerSessionId, policy: _policy, instructions: _instructions, ...rest } = chat
   return rest
 }
 
@@ -103,7 +113,10 @@ export function canSeeChat(chat: Chat, userId: number): boolean {
 // Conversas fora das tasks que a pessoa pode ver: as dela e as compartilhadas pela equipe.
 export function listGeneralChats(db: Db, userId: number): StoredChat[] {
   const rows = db
-    .prepare('SELECT * FROM chats WHERE task_id IS NULL AND (user_id = ? OR shared = 1) ORDER BY updated_at DESC, id DESC')
+    .prepare(
+      `SELECT * FROM chats WHERE task_id IS NULL AND origin IN ('user', 'telegram') AND (user_id = ? OR shared = 1)
+       ORDER BY updated_at DESC, id DESC`
+    )
     .all(userId) as unknown as ChatRow[]
   return rows.map(toChat)
 }
@@ -127,16 +140,37 @@ export function insertChat(
     branch: string | null
     cwd: string
     model?: string | null
+    origin?: ChatOrigin
+    title?: string
+    shared?: boolean
+    policy?: AutomationPolicy | null
+    instructions?: string | null
     now: Date
   }
 ): StoredChat {
   const now = input.now.toISOString()
   const result = db
     .prepare(
-      `INSERT INTO chats (task_id, user_id, provider, title, status, permission_mode, branch, cwd, model, created_at, updated_at)
-       VALUES (?, ?, ?, 'Nova conversa', 'idle', ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO chats (task_id, user_id, provider, title, status, permission_mode, branch, cwd, model, origin, shared,
+                          policy, instructions, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'idle', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(input.taskId, input.userId, input.provider, input.permissionMode, input.branch, input.cwd, input.model ?? null, now, now)
+    .run(
+      input.taskId,
+      input.userId,
+      input.provider,
+      input.title ?? 'Nova conversa',
+      input.permissionMode,
+      input.branch,
+      input.cwd,
+      input.model ?? null,
+      input.origin ?? 'user',
+      input.shared ? 1 : 0,
+      input.policy ? JSON.stringify(input.policy) : null,
+      input.instructions ?? null,
+      now,
+      now
+    )
   const chat = getChat(db, Number(result.lastInsertRowid))
   if (!chat) throw new Error('Conversa recém-criada não encontrada.')
   return chat

@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { hashToken } from '../auth/passwords.ts'
 import { getUser } from '../auth/users.ts'
 import type { Db } from '../db/index.ts'
+import { markdownToTelegramHtml, splitMessage } from './format.ts'
 import type { TelegramClient, TelegramUpdate } from './telegram.ts'
 
 const CODE_MINUTES = 15
@@ -139,6 +140,34 @@ export class Notifier {
       .run(row.user_id, chatId, this.options.now().toISOString())
     const name = getUser(this.options.db, row.user_id)?.name.split(' ')[0] ?? ''
     await telegram.sendMessage(chatId, `Pronto, ${name}! A partir de agora você recebe aqui os avisos do Harpia.`)
+  }
+
+  chatIdOf(userId: number): string | null {
+    const target = this.options.db
+      .prepare('SELECT chat_id FROM notification_targets WHERE user_id = ? AND platform = ?')
+      .get(userId, 'telegram') as { chat_id: string } | undefined
+    return target?.chat_id ?? null
+  }
+
+  // Manda uma resposta de agente (markdown) para a pessoa, formatada e em partes. Se o Telegram
+  // recusar o HTML, manda o texto puro. true = chegou.
+  async sendTo(userId: number, markdown: string): Promise<boolean> {
+    const telegram = this.options.telegram
+    const chatId = this.chatIdOf(userId)
+    if (!telegram || !chatId) return false
+    try {
+      for (const part of splitMessage(markdown)) {
+        try {
+          await telegram.sendMessage(chatId, markdownToTelegramHtml(part), { html: true })
+        } catch {
+          await telegram.sendMessage(chatId, part)
+        }
+      }
+      return true
+    } catch (error) {
+      this.options.warn(error, 'Não foi possível mandar a mensagem pelo Telegram.')
+      return false
+    }
   }
 
   // Manda o aviso para as pessoas que vincularam o Telegram. Com onlyOffline, pula quem está

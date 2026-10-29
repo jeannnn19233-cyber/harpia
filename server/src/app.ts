@@ -27,6 +27,8 @@ import { registerProjectRoutes } from './projects/routes.ts'
 import { RealtimeHub } from './realtime/hub.ts'
 import { registerRealtimeRoutes } from './realtime/routes.ts'
 import { registerTaskRoutes } from './tasks/routes.ts'
+import { registerRoutineRoutes } from './routines/routes.ts'
+import { RoutineRunner } from './routines/runner.ts'
 import { registerWatcherRoutes } from './watcher/routes.ts'
 import { Watcher } from './watcher/watcher.ts'
 
@@ -43,6 +45,8 @@ export interface BuildOptions {
   // false: o servidor não lê sozinho as mensagens do bot (os testes chamam pollOnce).
   pollTelegram?: boolean
   now?: () => Date
+  // Limites de tempo das execuções automáticas (os testes usam valores curtos).
+  routineLimits?: { inactivityMs?: number; maxMs?: number }
 }
 
 // O banco fica numa pasta só do servidor, fora do alcance dos usuários dos agentes.
@@ -61,7 +65,13 @@ function databaseFile(dataDir: string): string {
   return file
 }
 
-export async function buildApp(options: BuildOptions): Promise<{ app: FastifyInstance; ctx: AppContext }> {
+// Serviços que os testes e outros módulos precisam acessar diretamente.
+export interface AppServices {
+  chat: ChatManager
+  routines: RoutineRunner
+}
+
+export async function buildApp(options: BuildOptions): Promise<{ app: FastifyInstance; ctx: AppContext; services: AppServices }> {
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 1024 * 1024 })
   const dataDir = options.config.dataDir
   const ctx: AppContext = {
@@ -112,7 +122,14 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
         ctx.agents.spawnPiped({ user: input.user, ...process })
       return input.provider === 'claude' ? listClaudeModels(spawn, input.cwd) : listCodexModels(spawn, input.cwd)
     })
-  registerChatRoutes(app, ctx, new ChatManager(ctx, providers, lister))
+  const chat = new ChatManager(ctx, providers, lister)
+  registerChatRoutes(app, ctx, chat)
+  const routines = new RoutineRunner(ctx, chat, {
+    tickSeconds: options.config.routineTickSeconds,
+    maxConcurrent: options.config.maxConcurrentRuns,
+    ...options.routineLimits
+  })
+  registerRoutineRoutes(app, ctx, routines)
   registerPullRoutes(app, ctx)
   registerWatcherRoutes(
     app,
@@ -141,5 +158,5 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     ctx.db.close()
   })
 
-  return { app, ctx }
+  return { app, ctx, services: { chat, routines } }
 }

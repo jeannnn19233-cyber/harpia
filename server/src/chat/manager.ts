@@ -45,6 +45,8 @@ export class ChatManager {
   private readonly sweeper: ReturnType<typeof setInterval>
   private readonly lister: ModelLister
   private readonly modelsCache = new Map<string, { at: number; models: Promise<ChatModel[]> }>()
+  // Quem espera o fim da vez de cada conversa (execuções automáticas).
+  private readonly turnWaiters = new Map<number, ((error: string | null) => void)[]>()
 
   constructor(ctx: AppContext, factory: ProviderFactory, lister: ModelLister) {
     this.ctx = ctx
@@ -94,10 +96,73 @@ export class ChatManager {
     try {
       await runtime.adapter.send(text)
     } catch (error) {
-      this.addItem(chat.id, { kind: 'error', text: `Não foi possível falar com o agente: ${(error as Error).message}` })
+      const message = `Não foi possível falar com o agente: ${(error as Error).message}`
+      this.addItem(chat.id, { kind: 'error', text: message })
+      this.resolveTurn(chat.id, message)
       this.dropRuntime(chat.id)
       this.setStatus(chat.id, 'idle')
     }
+  }
+
+  // Uma vez completa sem ninguém olhando (rotinas, revisões, Telegram): manda a mensagem, espera o
+  // fim e devolve a última resposta do agente. Para o agente se ele ficar parado ou passar do limite.
+  async runTurn(
+    chat: StoredChat,
+    text: string,
+    limits: { inactivityMs?: number; maxMs?: number } = {}
+  ): Promise<{ text: string; error: string | null }> {
+    const owner = getUser(this.ctx.db, chat.userId)
+    if (!owner) throw new HttpError(404, 'Dona da conversa não encontrada.')
+    if (chat.status !== 'idle') throw new HttpError(409, 'A conversa já está ocupada.')
+    const inactivityMs = limits.inactivityMs ?? 10 * 60 * 1000
+    const maxMs = limits.maxMs ?? 60 * 60 * 1000
+    const before = this.lastItemId(chat.id)
+    const started = Date.now()
+    let watchdog: ReturnType<typeof setInterval> | undefined
+    const finished = new Promise<string | null>((resolve) => {
+      const list = this.turnWaiters.get(chat.id) ?? []
+      list.push(resolve)
+      this.turnWaiters.set(chat.id, list)
+      watchdog = setInterval(() => {
+        const runtime = this.runtimes.get(chat.id)
+        const idleFor = Date.now() - (runtime?.lastActiveAt ?? started)
+        if (idleFor < inactivityMs && Date.now() - started < maxMs) return
+        const reason =
+          idleFor >= inactivityMs
+            ? `O agente ficou ${Math.round(inactivityMs / 60000)} minutos sem responder e foi parado.`
+            : `A execução passou de ${Math.round(maxMs / 60000)} minutos e foi parada.`
+        this.addItem(chat.id, { kind: 'error', text: reason })
+        this.resolveTurn(chat.id, reason)
+        this.dropRuntime(chat.id)
+        this.setStatus(chat.id, 'idle')
+      }, Math.min(15000, Math.max(50, inactivityMs / 4)))
+    })
+    try {
+      await this.send(chat, owner, text)
+      const error = await finished
+      return { text: this.lastAssistantText(chat.id, before), error }
+    } finally {
+      clearInterval(watchdog)
+    }
+  }
+
+  private resolveTurn(chatId: number, error: string | null): void {
+    const list = this.turnWaiters.get(chatId)
+    if (!list) return
+    this.turnWaiters.delete(chatId)
+    for (const resolve of list) resolve(error)
+  }
+
+  private lastItemId(chatId: number): number {
+    const row = this.ctx.db.prepare('SELECT MAX(id) AS id FROM chat_items WHERE chat_id = ?').get(chatId) as { id: number | null }
+    return row.id ?? 0
+  }
+
+  private lastAssistantText(chatId: number, afterId: number): string {
+    const row = this.ctx.db
+      .prepare("SELECT data FROM chat_items WHERE chat_id = ? AND id > ? AND kind = 'assistant' ORDER BY id DESC LIMIT 1")
+      .get(chatId, afterId) as { data: string } | undefined
+    return row ? String((JSON.parse(row.data) as { text?: string }).text ?? '').trim() : ''
   }
 
   async interrupt(chat: StoredChat): Promise<void> {
@@ -189,6 +254,7 @@ export class ChatManager {
     this.runtimes.delete(chatId)
     this.expireApprovals(chatId, runtime)
     runtime.adapter.close()
+    this.resolveTurn(chatId, 'A conversa foi encerrada antes do fim.')
   }
 
   private expireApprovals(chatId: number, runtime: Runtime): void {
@@ -205,6 +271,7 @@ export class ChatManager {
 
   // O que o agente precisa saber ao começar: a task, a branch e a memória do projeto.
   instructionsFor(chat: StoredChat): string | null {
+    if (chat.instructions) return chat.instructions
     if (chat.taskId === null) {
       return (
         'Você está numa conversa pelo Harpia, o workspace da equipe, fora de qualquer task. ' +
@@ -242,6 +309,7 @@ export class ChatManager {
     if (existing) return existing
     const user = getUser(this.ctx.db, chat.userId)
     if (!user) throw new HttpError(404, 'Dona da conversa não encontrada.')
+    if (chat.policy && chat.provider !== 'claude') throw new HttpError(400, 'Execuções automáticas usam o Claude Code.')
     const runtime: Runtime = {
       adapter: null as unknown as ProviderAdapter,
       lastActiveAt: Date.now(),
@@ -256,6 +324,7 @@ export class ChatManager {
       resumeId: chat.providerSessionId,
       permissionMode: chat.permissionMode,
       model: chat.model,
+      policy: chat.policy,
       instructions: this.instructionsFor(chat),
       hooks: this.hooksFor(chat.id, runtime)
     })
@@ -350,6 +419,9 @@ export class ChatManager {
         this.expireApprovals(chatId, runtime)
         if (error) this.addItem(chatId, { kind: 'error', text: error })
         this.setStatus(chatId, 'idle')
+        this.resolveTurn(chatId, error)
+        // Execuções automáticas avisam pelo próprio canal (rotina, revisão, Telegram).
+        if (getChat(this.ctx.db, chatId)?.origin !== 'user') return
         this.notifyOwner(chatId, (where, provider) =>
           error ? `Seu ${provider} parou com erro em ${where}: ${error}` : `Seu ${provider} terminou em ${where}.`
         )
@@ -364,6 +436,7 @@ export class ChatManager {
           this.addItem(chatId, { kind: 'error', text: error ?? 'O agente encerrou antes de terminar.' })
           this.setStatus(chatId, 'idle')
         }
+        this.resolveTurn(chatId, error ?? 'O agente encerrou antes de terminar.')
       }
     }
   }

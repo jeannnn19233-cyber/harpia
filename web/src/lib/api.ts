@@ -7,6 +7,8 @@ import type {
   Chat,
   ChatItem,
   ChatModel,
+  Routine,
+  RoutineRun,
   ChatProvider,
   Finding,
   Invite,
@@ -43,6 +45,11 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   if (!response.ok) throw new ApiError(response.status, data.error ?? `Erro ${response.status}`)
   return data as T
 }
+
+export type RoutineInput = Pick<
+  Routine,
+  'name' | 'prompt' | 'schedule' | 'timezone' | 'folder' | 'web' | 'model' | 'deliver' | 'continuity' | 'enabled'
+>
 
 export const api = {
   status: () => request<{ needsSetup: boolean; setupCodeRequired: boolean }>('GET', '/api/status'),
@@ -103,6 +110,17 @@ export const api = {
   deleteChat: (id: number) => request<{ ok: true }>('DELETE', `/api/chats/${id}`),
   models: (provider: ChatProvider) =>
     request<{ models: ChatModel[]; error: string | null }>('GET', `/api/me/models?provider=${provider}`),
+  routines: () => request<{ routines: Routine[] }>('GET', '/api/routines'),
+  createRoutine: (input: RoutineInput) => request<{ routine: Routine }>('POST', '/api/routines', input),
+  updateRoutine: (id: number, input: Partial<RoutineInput>) => request<{ routine: Routine }>('PATCH', `/api/routines/${id}`, input),
+  deleteRoutine: (id: number) => request<{ ok: true }>('DELETE', `/api/routines/${id}`),
+  runRoutine: (id: number) => request<{ run: RoutineRun }>('POST', `/api/routines/${id}/run`, {}),
+  routineRuns: (id: number) => request<{ runs: RoutineRun[] }>('GET', `/api/routines/${id}/runs`),
+  previewSchedule: (schedule: string, timezone: string) =>
+    request<{ problem: string | null; next: string[] }>(
+      'GET',
+      `/api/routines/preview?schedule=${encodeURIComponent(schedule)}&timezone=${encodeURIComponent(timezone)}`
+    ),
   closeChat: (id: number) => request<{ chat: Chat }>('POST', `/api/chats/${id}/close`, {}),
 
   projectPulls: (projectId: number) => request<{ pullRequests: PullRequest[] }>('GET', `/api/projects/${projectId}/pull-requests`),

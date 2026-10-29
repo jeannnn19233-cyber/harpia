@@ -17,6 +17,19 @@ const scripted: ProviderFactory = (input) => {
     async send(text) {
       turn++
       const id = turn
+      // Execução automática (rotina): responde sozinho, sem pedir aprovação.
+      if (input.policy) {
+        void (async () => {
+          input.hooks.onSession(`sessao-${input.user.id}`)
+          await sleep(300)
+          input.hooks.onToolStart(`w${id}`, 'WebSearch', 'notícias de IA hoje')
+          await sleep(300)
+          input.hooks.onToolEnd(`w${id}`, true, '3 resultados')
+          input.hooks.onTextDone(`r${id}`, '**Resumo da manhã**\n\n- Saiu o Node 26 ([link](https://nodejs.org))\n- Nova versão do Claude Code')
+          input.hooks.onTurnEnd(null)
+        })()
+        return
+      }
       void (async () => {
         input.hooks.onSession(`sessao-${input.user.id}`)
         const reply = `Entendi. Vou trabalhar em **${text}** na branch \`harpia\`.\n\nPrimeiro vou rodar os testes:`
@@ -88,6 +101,8 @@ const { app } = await buildApp({
     maxSessionsPerUser: 5,
     prPollSeconds: 60,
     watcherIntervalSeconds: 3600,
+    routineTickSeconds: 5,
+    maxConcurrentRuns: 3,
     staleHours: 48,
     reviewHours: 24
   },

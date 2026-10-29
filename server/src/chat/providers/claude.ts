@@ -1,6 +1,8 @@
 import {
   query,
   type CanUseTool,
+  type HookCallback,
+  type Options,
   type PermissionMode as SdkPermissionMode,
   type Query,
   type SDKMessage,
@@ -8,6 +10,7 @@ import {
   type SpawnedProcess
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ChatModel, PermissionMode } from '../../../../shared/types.ts'
+import { checkToolUse, type AutomationPolicy } from '../../automation/policy.ts'
 import { truncate, type ProviderAdapter, type ProviderHooks, type ProviderInput, type SpawnAsUser } from './types.ts'
 
 // O Claude Code instalado na imagem. Ele usa o login que a pessoa fez em "Minhas IAs".
@@ -233,6 +236,26 @@ export async function listClaudeModels(spawnAsUser: SpawnAsUser, cwd: string): P
   }
 }
 
+// Opções de uma execução automática: só as ferramentas da política, recusa tudo que não foi
+// liberado (dontAsk) e confere os caminhos antes de cada ferramenta, seguindo links simbólicos.
+export function automationOptions(policy: AutomationPolicy, cwd: string): Partial<Options> {
+  const guard: HookCallback = async (hookInput) => {
+    const input = hookInput as { tool_name?: string; tool_input?: Record<string, unknown> }
+    const reason = await checkToolUse(policy, String(input.tool_name ?? ''), input.tool_input ?? {}, cwd)
+    if (!reason) return {}
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
+  }
+  return {
+    tools: policy.tools,
+    allowedTools: policy.tools,
+    permissionMode: 'dontAsk',
+    // Sem as configurações da pessoa: nada de permissões ou ganchos extras numa execução sem humano.
+    settingSources: [],
+    hooks: { PreToolUse: [{ hooks: [guard] }] },
+    canUseTool: async () => ({ behavior: 'deny', message: 'Execução automática: nada além das ferramentas liberadas.' })
+  }
+}
+
 export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsUser): ProviderAdapter {
   const { hooks } = input
   const queue = new MessageQueue()
@@ -270,8 +293,8 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
         tools: { type: 'preset', preset: 'claude_code' },
         settingSources: ['user', 'project', 'local'],
         pathToClaudeCodeExecutable: CLAUDE_BIN,
-        // Com entrada e saída em pipe, stdin e stdout sempre existem.
-        spawnClaudeCodeProcess: spawner(spawnAsUser, input.cwd)
+        spawnClaudeCodeProcess: spawner(spawnAsUser, input.cwd),
+        ...(input.policy ? automationOptions(input.policy, input.cwd) : {})
       }
     })
     const current = running
@@ -299,6 +322,8 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
       await running?.interrupt()
     },
     async setPermissionMode(mode) {
+      // Execuções automáticas não mudam de modo: a política vale do começo ao fim.
+      if (input.policy) return
       input.permissionMode = mode
       await running?.setPermissionMode(SDK_MODES[mode])
     },

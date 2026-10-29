@@ -8,12 +8,14 @@ import type {
   Project,
   PullRequest,
   RealtimeMessage,
+  Routine,
+  RoutineRun,
   Task,
   TaskEvent,
   User
 } from '../../../shared/types.ts'
 
-export type View = 'board' | 'chats'
+export type View = 'board' | 'chats' | 'routines'
 
 interface HarpiaState {
   // Quadro de tasks ou conversas fora das tasks.
@@ -34,6 +36,9 @@ interface HarpiaState {
   chatItems: Record<number, ChatItem[]>
   pulls: Record<number, PullRequest>
   findings: Record<number, Finding>
+  routines: Record<number, Routine>
+  // Execuções de cada rotina já carregada (mais recentes primeiro).
+  routineRuns: Record<number, RoutineRun[]>
 
   setView(view: View): void
   setMe(me: User | null): void
@@ -52,6 +57,9 @@ interface HarpiaState {
   setChatItems(chatId: number, items: ChatItem[]): void
   upsertPulls(pulls: PullRequest[]): void
   upsertFindings(findings: Finding[]): void
+  setRoutines(routines: Routine[]): void
+  upsertRoutine(routine: Routine): void
+  setRoutineRuns(routineId: number, runs: RoutineRun[]): void
   apply(message: RealtimeMessage): void
 }
 
@@ -60,7 +68,8 @@ const VIEW_KEY = 'harpia.view'
 
 function savedView(): View {
   try {
-    return localStorage.getItem(VIEW_KEY) === 'chats' ? 'chats' : 'board'
+    const saved = localStorage.getItem(VIEW_KEY)
+    return saved === 'chats' || saved === 'routines' ? saved : 'board'
   } catch {
     return 'board'
   }
@@ -98,6 +107,8 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   chatItems: {},
   pulls: {},
   findings: {},
+  routines: {},
+  routineRuns: {},
 
   setView: (view) => {
     try {
@@ -142,6 +153,9 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   upsertChats: (chats) =>
     set((state) => ({ chats: { ...state.chats, ...Object.fromEntries(chats.map((chat) => [chat.id, chat])) } })),
   setChatItems: (chatId, items) => set((state) => ({ chatItems: { ...state.chatItems, [chatId]: items } })),
+  setRoutines: (routines) => set({ routines: Object.fromEntries(routines.map((routine) => [routine.id, routine])) }),
+  upsertRoutine: (routine) => set((state) => ({ routines: { ...state.routines, [routine.id]: routine } })),
+  setRoutineRuns: (routineId, runs) => set((state) => ({ routineRuns: { ...state.routineRuns, [routineId]: runs } })),
   upsertFindings: (findings) =>
     set((state) => ({ findings: { ...state.findings, ...Object.fromEntries(findings.map((finding) => [finding.id, finding])) } })),
   upsertPulls: (pulls) =>
@@ -174,6 +188,22 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
       case 'chat':
         state.upsertChats([message.chat])
         break
+      case 'routine':
+        state.upsertRoutine(message.routine)
+        break
+      case 'routine_removed': {
+        const { [message.routineId]: _routine, ...routines } = state.routines
+        set({ routines })
+        break
+      }
+      case 'routine_run': {
+        const list = state.routineRuns[message.run.routineId]
+        if (!list) break
+        const index = list.findIndex((run) => run.id === message.run.id)
+        const next = index === -1 ? [message.run, ...list] : list.map((run, i) => (i === index ? message.run : run))
+        set({ routineRuns: { ...state.routineRuns, [message.run.routineId]: next } })
+        break
+      }
       case 'chat_removed': {
         const { [message.chatId]: _chat, ...chats } = state.chats
         const { [message.chatId]: _items, ...chatItems } = state.chatItems

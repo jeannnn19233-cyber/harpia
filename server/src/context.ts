@@ -28,6 +28,10 @@ export interface AppConfig {
   watcherIntervalSeconds: number
   staleHours: number
   reviewHours: number
+  // Rotinas: de quanto em quanto tempo o agendador confere (0 desliga, nos testes) e quantas rodam
+  // ao mesmo tempo no servidor todo.
+  routineTickSeconds: number
+  maxConcurrentRuns: number
 }
 
 export interface AppContext {

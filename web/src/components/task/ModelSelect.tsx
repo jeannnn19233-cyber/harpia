@@ -14,13 +14,23 @@ function loadModels(provider: ChatProvider) {
   return pending
 }
 
-export function ModelSelect({ chat, onChange }: { chat: Chat; onChange: (model: string | null) => void }) {
+export function ModelPicker({
+  provider,
+  value,
+  onChange,
+  className = 'input w-auto max-w-44 py-1 text-xs'
+}: {
+  provider: ChatProvider
+  value: string | null
+  onChange: (model: string | null) => void
+  className?: string
+}) {
   const [models, setModels] = useState<ChatModel[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let current = true
-    void loadModels(chat.provider).then((result) => {
+    void loadModels(provider).then((result) => {
       if (!current) return
       setModels(result.models)
       setError(result.error)
@@ -28,17 +38,17 @@ export function ModelSelect({ chat, onChange }: { chat: Chat; onChange: (model: 
     return () => {
       current = false
     }
-  }, [chat.provider])
+  }, [provider])
 
   const list = models ?? []
   // O modelo escolhido continua na lista mesmo que a conta não o anuncie mais.
-  const options = chat.model && !list.some((model) => model.id === chat.model) ? [{ id: chat.model, label: chat.model, description: '' }, ...list] : list
+  const options = value && !list.some((model) => model.id === value) ? [{ id: value, label: value, description: '' }, ...list] : list
 
   return (
     <select
-      className="input w-auto max-w-44 py-1 text-xs"
-      value={chat.model ?? ''}
-      title={error ?? 'Modelo usado nesta conversa. A troca vale a partir da próxima mensagem.'}
+      className={className}
+      value={value ?? ''}
+      title={error ?? 'Modelo usado. A troca vale a partir da próxima mensagem.'}
       onChange={(e) => onChange(e.target.value || null)}
     >
       <option value="">{models === null ? 'Carregando modelos…' : 'Modelo padrão'}</option>
@@ -49,4 +59,8 @@ export function ModelSelect({ chat, onChange }: { chat: Chat; onChange: (model: 
       ))}
     </select>
   )
+}
+
+export function ModelSelect({ chat, onChange }: { chat: Chat; onChange: (model: string | null) => void }) {
+  return <ModelPicker provider={chat.provider} value={chat.model} onChange={onChange} />
 }

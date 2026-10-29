@@ -60,7 +60,8 @@ export function Conversations() {
   const chats = useMemo(
     () =>
       Object.values(allChats)
-        .filter((chat) => chat.taskId === null)
+        // Execuções de rotina e revisões de PR ficam nas próprias telas, não aqui.
+        .filter((chat) => chat.taskId === null && (chat.origin === 'user' || chat.origin === 'telegram'))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id - a.id),
     [allChats]
   )

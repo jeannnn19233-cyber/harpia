@@ -7,6 +7,7 @@ import { AccountsDialog } from './AccountsDialog.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Board } from './Board.tsx'
 import { Conversations } from './chat/Conversations.tsx'
+import { Routines } from './routines/Routines.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
 import { MemoryDialog, useOpenFindings, WatcherDialog } from './Watcher.tsx'
 import { TaskWorkspace } from './task/TaskWorkspace.tsx'
@@ -65,7 +66,8 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
           {(
             [
               ['board', 'Quadro'],
-              ['chats', 'Conversas']
+              ['chats', 'Conversas'],
+              ['routines', 'Rotinas']
             ] as const
           ).map(([key, label]) => (
             <button
@@ -136,6 +138,8 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
 
       {view === 'chats' ? (
         <Conversations />
+      ) : view === 'routines' ? (
+        <Routines />
       ) : project && openTaskId ? (
         <TaskWorkspace key={openTaskId} taskId={openTaskId} />
       ) : project ? (

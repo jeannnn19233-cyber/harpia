@@ -1,10 +1,18 @@
 import { Fragment, type ReactNode } from 'react'
 
 // Mostra o texto dos agentes com o básico de Markdown: blocos de código, `código`,
-// **negrito** e listas. Sem HTML vindo de fora: tudo é texto escapado pelo React.
+// **negrito**, [links](https://...) e listas. Sem HTML vindo de fora: tudo é texto escapado pelo React.
 function inline(text: string): ReactNode[] {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\))/g)
   return parts.map((part, index) => {
+    const link = part.match(/^\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)$/)
+    if (link) {
+      return (
+        <a key={index} href={link[2]} target="_blank" rel="noreferrer noopener" className="text-brand-400 underline underline-offset-2">
+          {link[1]}
+        </a>
+      )
+    }
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
       return (
         <code key={index} className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-[0.85em] text-amber-200">

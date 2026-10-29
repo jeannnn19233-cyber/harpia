@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
-import { buildApp } from '../src/app.ts'
+import { buildApp, type AppServices } from '../src/app.ts'
 import type { AppContext } from '../src/context.ts'
 import type { AgentSystem } from '../src/agents/system.ts'
 import type { ModelLister, ProviderFactory } from '../src/chat/providers/types.ts'
@@ -14,6 +14,7 @@ import { FakeAgentSystem } from './fake-agents.ts'
 export interface TestServer {
   app: FastifyInstance
   ctx: AppContext
+  services: AppServices
   dataDir: string
   close(keepData?: boolean): Promise<void>
 }
@@ -58,10 +59,11 @@ export async function startServer(
     setupCode?: string
     terminalsEnabled?: boolean
     maxSessionsPerUser?: number
+    routineLimits?: { inactivityMs?: number; maxMs?: number }
   } = {}
 ): Promise<TestServer> {
   const dataDir = options.dataDir ?? mkdtempSync(join(tmpdir(), 'harpia-test-'))
-  const { app, ctx } = await buildApp({
+  const { app, ctx, services } = await buildApp({
     config: {
       dataDir,
       reposDir: join(dataDir, 'repos'),
@@ -73,6 +75,8 @@ export async function startServer(
       maxSessionsPerUser: options.maxSessionsPerUser ?? 5,
       prPollSeconds: 3600,
       watcherIntervalSeconds: 3600,
+      routineTickSeconds: 0,
+      maxConcurrentRuns: 3,
       staleHours: 48,
       reviewHours: 24
     },
@@ -83,6 +87,7 @@ export async function startServer(
     git: options.git ?? fakeGit,
     agents: options.agents ?? new FakeAgentSystem(),
     chatModels: options.chatModels,
+    routineLimits: options.routineLimits,
     chatProviders: options.chatProviders ?? (() => {
       throw new Error('Este teste não configurou provedores de chat.')
     })
@@ -91,6 +96,7 @@ export async function startServer(
   return {
     app,
     ctx,
+    services,
     dataDir,
     async close(keepData = false) {
       await app.close()

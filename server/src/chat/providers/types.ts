@@ -1,4 +1,5 @@
 import type { ChildProcess } from 'node:child_process'
+import type { AutomationPolicy } from '../../automation/policy.ts'
 import type { ChatModel, ChatProvider, PermissionMode, User } from '../../../../shared/types.ts'
 
 // O que o provedor (Claude ou Codex) avisa enquanto trabalha. "key" identifica cada
@@ -38,6 +39,8 @@ export interface ProviderInput {
   resumeId: string | null
   permissionMode: PermissionMode
   model: string | null
+  // Execução sem ninguém para aprovar: ferramentas e pastas fixas, nada de pedido de aprovação.
+  policy: AutomationPolicy | null
   // Contexto que o agente recebe ao começar: a task, a branch e a memória do projeto.
   instructions: string | null
   hooks: ProviderHooks

@@ -37,7 +37,7 @@ const user = { id: 1, name: 'Ana', email: 'ana@x.com', role: 'admin' as const, c
 function codexWith(decision: 'allow' | 'deny', resumeId: string | null = null, model: string | null = null) {
   const record = recorder(decision)
   const provider = createCodexProvider(
-    { provider: 'codex', user, cwd: '/trabalho/T-1', resumeId, permissionMode: 'ask', model, instructions: 'Task T-1', hooks: record.hooks },
+    { provider: 'codex', user, cwd: '/trabalho/T-1', resumeId, permissionMode: 'ask', model, policy: null, instructions: 'Task T-1', hooks: record.hooks },
     ({ cwd }) =>
       spawn(process.execPath, [fakeServer], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, EXPECTED_CWD: cwd } })
   )

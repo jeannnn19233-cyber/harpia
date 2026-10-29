@@ -28,6 +28,8 @@ const { app } = await buildApp({
     maxSessionsPerUser: Number(process.env.HARPIA_MAX_SESSIONS_PER_USER ?? 5),
     prPollSeconds: Number(process.env.HARPIA_PR_POLL_SECONDS ?? 60),
     watcherIntervalSeconds: Number(process.env.HARPIA_WATCHER_INTERVAL_SECONDS ?? 300),
+    routineTickSeconds: 30,
+    maxConcurrentRuns: Number(process.env.HARPIA_MAX_CONCURRENT_RUNS ?? 3),
     staleHours: Number(process.env.HARPIA_STALE_HOURS ?? 48),
     reviewHours: Number(process.env.HARPIA_REVIEW_HOURS ?? 24)
   },
