@@ -49,11 +49,13 @@ export function achadosBloqueantesAbertos(mem: PrMemory): PrFinding[] {
 }
 
 // Grava uma rodada (pura: devolve a memória nova). Item com id atualiza um achado existente; item
-// sem id é achado novo (nasce com o id seguinte, aberto).
+// sem id é achado novo (nasce com o id seguinte, aberto). Diferença do Hermes: quando a própria
+// rodada trouxe o commit da correção (corrigidoNaRodada), o achado novo pode nascer resolvido —
+// senão ficaria aberto para sempre, porque o commit do revisor não volta para ele revisar.
 export function aplicarRodada(
   mem: PrMemory,
   achadosDaRodada: FindingUpdate[],
-  input: { sha: string; em: string; evento: string | null; resumo: string }
+  input: { sha: string; em: string; evento: string | null; resumo: string; corrigidoNaRodada?: boolean }
 ): PrMemory {
   const nova = JSON.parse(JSON.stringify(mem)) as PrMemory
   const n = nova.rodadas.length + 1
@@ -74,7 +76,9 @@ export function aplicarRodada(
       alvo.historico.push({ rodada: n, sha: input.sha, status, nota: item.nota ?? '' })
     } else {
       if (!item.gravidade || !GRAVIDADES_VALIDAS.includes(item.gravidade)) throw new Error(`gravidade inválida em achado novo: ${item.gravidade}`)
-      if (status !== 'aberto') throw new Error('achado novo nasce aberto')
+      if (status === 'retirado' || (status === 'resolvido' && !input.corrigidoNaRodada)) {
+        throw new Error(input.corrigidoNaRodada ? 'achado novo nasce aberto ou resolvido' : 'achado novo nasce aberto (só nasce resolvido quando você commitou a correção nesta execução)')
+      }
       if (!item.resumo) throw new Error('achado novo precisa de resumo')
       nova.achados.push({
         id: `A${proximo}`,
@@ -82,8 +86,8 @@ export function aplicarRodada(
         linha: item.linha ?? null,
         resumo: item.resumo,
         gravidade: item.gravidade,
-        status: 'aberto',
-        historico: [{ rodada: n, sha: input.sha, status: 'aberto', nota: item.nota ?? '' }]
+        status,
+        historico: [{ rodada: n, sha: input.sha, status, nota: item.nota ?? '' }]
       })
       proximo++
     }

@@ -527,7 +527,7 @@ export class PrReviewer {
     const lastEvent = result.revisoes.at(-1)?.evento ?? null
     let saved = memory
     try {
-      saved = aplicarRodada(memory, result.achados, { sha: finalSha, em: now.toISOString(), evento: lastEvent, resumo: result.resultado })
+      saved = aplicarRodada(memory, result.achados, { sha: finalSha, em: now.toISOString(), evento: lastEvent, resumo: result.resultado, corrigidoNaRodada: commits.length > 0 })
       salvarMemoria(this.ctx.db, project.id, saved, now)
     } catch {
       // Achado com id inválido: a publicação vale, a memória fica como estava.
@@ -614,7 +614,7 @@ export class PrReviewer {
       problems.push(...errors.map((error) => `${where}: ${error}`))
     })
     try {
-      aplicarRodada(memory, result.achados, { sha: finalSha, em: new Date().toISOString(), evento: null, resumo: '' })
+      aplicarRodada(memory, result.achados, { sha: finalSha, em: new Date().toISOString(), evento: null, resumo: '', corrigidoNaRodada: canWrite && log.commits.length > 0 })
     } catch (error) {
       problems.push(`achados: ${(error as Error).message}`)
     }
@@ -729,6 +729,7 @@ export class PrReviewer {
               .join('; ')
           : 'nenhum check'
       }`,
+      `- Revisão pedida a: ${pr.requestedReviewers.length ? pr.requestedReviewers.map((login) => `@${login}`).join(', ') : 'ninguém'}`,
       `- Revisões no PR: ${
         reviews.length
           ? reviews.map((review) => `@${review.login} ${review.state} em ${review.submittedAt?.slice(0, 16) ?? '?'} no ${review.commitId?.slice(0, 7) ?? '?'}`).join('; ')

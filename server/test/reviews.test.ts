@@ -249,6 +249,7 @@ describe('revisor de PRs (como o do Hermes)', () => {
     const message = first.sent[0]
     expect(message.split('\n')[0]).toBe(`REVISAR PR #7 topo=${headSha} revisado_antes=- autor=ana-dev rascunho=false tentativas=0 titulo=PR 7`)
     expect(message).toContain('<pr_nao_confiavel>')
+    expect(message).toContain('- Revisão pedida a: @bruno-rev')
     expect(message).not.toContain(SECRET)
 
     // Publicado com o token do Bruno, preso ao commit; a linha fora do diff foi para o corpo.

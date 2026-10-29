@@ -179,6 +179,15 @@ describe('memória por achado', () => {
     expect(mem.sha_revisado).toBe('s2')
     expect(() => aplicarRodada(mem, [{ id: 'A9', status: 'resolvido' }], { sha: 's3', em: 't3', evento: null, resumo: '' })).toThrow(/não existe/)
     expect(() => aplicarRodada(mem, [{ resumo: 'Z', gravidade: 'bloqueia', status: 'resolvido' }], { sha: 's3', em: 't3', evento: null, resumo: '' })).toThrow(/nasce aberto/)
+    // Corrigido pelo próprio revisor nesta execução: pode nascer resolvido.
+    const fixed = aplicarRodada(mem, [{ resumo: 'Z', gravidade: 'bloqueia', status: 'resolvido', nota: 'corrigido no s3' }], {
+      sha: 's3',
+      em: 't3',
+      evento: 'APPROVE',
+      resumo: '',
+      corrigidoNaRodada: true
+    })
+    expect(fixed.achados.at(-1)).toMatchObject({ id: 'A3', status: 'resolvido' })
   })
 })
 

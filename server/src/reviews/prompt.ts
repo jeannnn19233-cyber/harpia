@@ -56,7 +56,7 @@ SOMENTE um bloco \`\`\`json, sem nada antes ou depois:
 }
 - "revisoes" em ordem de publicação. "commit": "inicial" = o commit do PR que você recebeu (análise antes de corrigir); "final" = o último commit que você fez (correções e aprovação). Sem commits seus, use sempre "inicial". O corpo cita os 7 primeiros caracteres desse commit.
 - Comentários em linha só em linhas do diff do PR (side RIGHT = número no arquivo novo). O Harpia move para o corpo o que o GitHub não aceitar.
-- "achados": achado novo vai sem id e nasce "aberto"; achado que já estava na memória vai com o id dele e uma nota.
+- "achados": achado novo vai sem id e nasce "aberto" — ou "resolvido", se você mesmo commitou a correção nesta execução (com uma nota dizendo onde); achado que já estava na memória vai com o id dele e uma nota.
 - "pergunta": se o corpo do PR deixa uma decisão de produto para alguém (ex.: "Para o ${first} decidir", "🤔"), escreva a pergunta com as opções e NÃO aprove; ${first} responde e você continua depois.
 - "rascunho": "travar" quando o veredito final pede alterações; "destravar" quando aprova um PR que você mesmo travou antes.
 - Nada a publicar (ex.: revisão de outra pessoa que não pede nada): "revisoes": [] e o estado certo.
