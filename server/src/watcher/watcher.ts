@@ -7,14 +7,17 @@ import { transaction } from '../db/index.ts'
 import { listProjects } from '../projects/store.ts'
 import { countOpenPulls } from '../pulls/store.ts'
 import { significantWords, titleSimilarity } from '../search/similar.ts'
+import type { Insights } from '../insights/insights.ts'
 import { insertEvent, listTasks } from '../tasks/store.ts'
-import { resolveMissing, upsertFinding, type FindingInput } from './store.ts'
+import { findingExists, resolveMissing, upsertFinding, type FindingInput } from './store.ts'
 
 export interface WatcherOptions {
   // Sem atividade de pessoas nem de agentes por esse tempo, a task é considerada parada.
   staleHours: number
   // Em "Revisão" sem PR aberto por esse tempo, o vigia pergunta se dá para concluir.
   reviewHours: number
+  // Vigia com IA (fase 4b). Sem ele, tudo segue só com as regras fixas.
+  insights?: Insights | null
 }
 
 function hash(text: string): string {
@@ -26,8 +29,9 @@ export function describeDuration(hours: number): string {
   return `${Math.round(hours / 24)} dias`
 }
 
-// O vigia acompanha a área de tasks e avisa a equipe. Tudo aqui é regra fixa, sem IA:
-// barato, previsível e sem depender da conta de ninguém.
+// O vigia acompanha a área de tasks e avisa a equipe. As regras fixas (sem IA) encontram os
+// problemas; com a fase 4b, a IA de quem está envolvido confirma as tasks parecidas e escreve o
+// resumo das tasks concluídas.
 export class Watcher {
   private readonly ctx: AppContext
   private readonly options: WatcherOptions
@@ -68,6 +72,7 @@ export class Watcher {
       for (const [kind, inputs] of Object.entries(found) as [FindingKind, FindingInput[]][]) {
         await this.apply(project.id, kind, inputs)
       }
+      this.options.insights?.sweepSummaries(project.id)
     }
   }
 
@@ -165,14 +170,34 @@ export class Watcher {
         const [a, b] = [tasks[i], tasks[j]].sort((x, y) => x.number - y.number)
         const common = significantWords(a.title).filter((word) => significantWords(b.title).includes(word))
         if (common.length < 2 || titleSimilarity(a.title, b.title) < 0.6) continue
+        const fingerprint = `duplicate:${a.id}:${b.id}`
+        let message = `T-${a.number} "${a.title}" e T-${b.number} "${b.title}" parecem ser a mesma task. Vale juntar as duas ou deixar clara a diferença.`
+        const details: Record<string, unknown> = { words: common }
+        // Com IA: um aviso novo só sai depois que o Claude de quem criou a task confirma.
+        const insights = this.options.insights
+        if (insights && !findingExists(this.ctx.db, fingerprint)) {
+          // Títulos editados pedem um julgamento novo.
+          const judgeKey = `${fingerprint}:${hash(`${a.title}\n${b.title}`)}`
+          const judgment = insights.judgment(judgeKey)
+          if (!judgment) {
+            insights.requestJudgment(judgeKey, a, b)
+            continue
+          }
+          if (judgment.verdict === 'different') continue
+          if (judgment.verdict === 'duplicate') {
+            const judge = judgment.userId ? getUser(this.ctx.db, judgment.userId) : null
+            message = `T-${a.number} "${a.title}" e T-${b.number} "${b.title}" parecem ser a mesma task. ${judgment.reason ?? ''} (confirmado pelo Claude de ${judge?.name.split(' ')[0] ?? 'alguém'}). Vale juntar as duas ou deixar clara a diferença.`
+            details.ai = { reason: judgment.reason, userId: judgment.userId }
+          }
+        }
         found.push({
           projectId,
           kind: 'duplicate',
-          fingerprint: `duplicate:${a.id}:${b.id}`,
+          fingerprint,
           taskIds: [a.id, b.id],
           userIds: [...new Set([...this.people(a), ...this.people(b)])],
-          message: `T-${a.number} "${a.title}" e T-${b.number} "${b.title}" parecem ser a mesma task. Vale juntar as duas ou deixar clara a diferença.`,
-          details: { words: common }
+          message,
+          details
         })
       }
     }

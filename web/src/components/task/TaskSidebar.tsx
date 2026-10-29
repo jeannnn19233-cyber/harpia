@@ -16,6 +16,7 @@ import { fullDate, timeAgo } from '../../lib/format.ts'
 import { useHarpia } from '../../lib/store.ts'
 import { Avatar } from '../Avatar.tsx'
 import { DeliverySection } from './Delivery.tsx'
+import { SummarySection } from '../insights/Insights.tsx'
 import { FindingCard, useOpenFindings } from '../Watcher.tsx'
 
 function describe(event: TaskEvent, users: Record<number, User>): string {
@@ -49,6 +50,16 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
         : []
       return `revisou o PR #${event.data.number} com o Claude de ${name(event.data.reviewerId)}: ${verdict}${parts.length ? ` (${parts.join(', ')})` : ''}`
     }
+    case 'summarized': {
+      const learnings = Number(event.data.learnings ?? 0)
+      return `escreveu o resumo da task com o Claude de ${name(event.data.userId)}${learnings ? ` e sugeriu ${learnings} aprendizado(s)` : ''}`
+    }
+    case 'learning_applied':
+      return event.data.prUrl
+        ? `aprovou um aprendizado para o AGENTS.md (PR aberto): ${String(event.data.text)}`
+        : `aprovou um aprendizado para a memória do projeto: ${String(event.data.text)}`
+    case 'learning_dismissed':
+      return `descartou o aprendizado: ${String(event.data.text)}`
     case 'pr_closed':
       return `o PR #${event.data.number} de ${name(event.data.userId)} foi fechado sem merge`
     case 'status_changed':
@@ -247,6 +258,8 @@ export function TaskSidebar({ taskId }: { taskId: number }) {
             </div>
           </section>
         )}
+
+        <SummarySection task={task} />
 
         <DeliverySection task={task} />
 

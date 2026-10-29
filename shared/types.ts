@@ -19,6 +19,8 @@ export interface User {
   role: UserRole
   // Usuário do GitHub, para o Harpia saber de quem é cada PR (revisão automática).
   githubLogin: string | null
+  // Sugestão de próxima mensagem nas conversas com o Codex (feita pelo Claude da pessoa).
+  codexSuggestions: boolean
   createdAt: string
 }
 
@@ -62,6 +64,9 @@ export type TaskEventType =
   | 'pr_merged'
   | 'pr_closed'
   | 'pr_reviewed'
+  | 'summarized'
+  | 'learning_applied'
+  | 'learning_dismissed'
   | 'chat_started'
   | 'agent_started'
   | 'agent_stopped'
@@ -172,6 +177,41 @@ export interface Chat {
   origin: ChatOrigin
   createdAt: string
   updatedAt: string
+}
+
+// Resumo de uma task concluída, escrito pelo Claude de quem estava nela (fase 4b).
+export interface TaskSummary {
+  taskId: number
+  // De quem é o Claude que escreveu.
+  userId: number | null
+  status: 'running' | 'ready' | 'failed'
+  summary: string | null
+  error: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// Aprendizado sugerido pela IA ao fim de uma task: vai para o AGENTS.md do repositório (por PR)
+// ou para a memória do projeto, depois que alguém da equipe aprova.
+export type LearningTarget = 'agents_md' | 'memory'
+
+export interface Learning {
+  id: number
+  taskId: number
+  projectId: number
+  target: LearningTarget
+  text: string
+  reason: string
+  status: 'pending' | 'applied' | 'dismissed'
+  decidedBy: number | null
+  prUrl: string | null
+  createdAt: string
+  decidedAt: string | null
+}
+
+export const LEARNING_TARGET_LABELS: Record<LearningTarget, string> = {
+  agents_md: 'AGENTS.md do repositório',
+  memory: 'memória do projeto'
 }
 
 // Revisão automática de um PR (um commit), feita pelo Claude do autor do PR.
@@ -384,6 +424,8 @@ export type RealtimeMessage =
   // A conversa deixou de estar visível para quem recebe (foi excluída ou deixou de ser compartilhada).
   | { type: 'chat_removed'; chatId: number }
   | { type: 'pr_review'; review: PrReview }
+  | { type: 'task_summary'; summary: TaskSummary }
+  | { type: 'learning'; learning: Learning }
   | { type: 'routine'; routine: Routine }
   | { type: 'routine_removed'; routineId: number }
   | { type: 'routine_run'; run: RoutineRun }

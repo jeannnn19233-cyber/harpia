@@ -44,6 +44,29 @@ function GitHubLogin() {
   )
 }
 
+// Sugestão de próxima mensagem nas conversas com o Codex, escrita pelo Claude (Haiku) da pessoa.
+function CodexSuggestions() {
+  const { me, setMe } = useHarpia()
+  if (!me) return null
+  return (
+    <label className="mb-4 flex items-start gap-3 rounded-lg border border-zinc-800 px-4 py-3 text-sm">
+      <input
+        type="checkbox"
+        className="mt-1"
+        checked={me.codexSuggestions}
+        onChange={(e) => void api.updateMe({ codexSuggestions: e.target.checked }).then(({ user }) => setMe(user))}
+      />
+      <span>
+        <span className="font-medium">Sugerir a próxima mensagem nas conversas com o Codex</span>
+        <span className="block text-xs text-zinc-400">
+          O Claude já faz isso sozinho. Para o Codex, o seu Claude (modelo Haiku, o mais barato) lê o último pedido e a resposta e sugere o
+          próximo passo. Gasta um pouco da sua cota a cada resposta.
+        </span>
+      </span>
+    </label>
+  )
+}
+
 export function AccountsDialog({ onClose }: { onClose: () => void }) {
   const [accounts, setAccounts] = useState<AgentAccounts | null>(null)
   const [sessionId, setSessionId] = useState<number | null>(null)
@@ -75,6 +98,7 @@ export function AccountsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog title="Minhas IAs" onClose={onClose} wide>
       <GitHubLogin />
+      <CodexSuggestions />
       <div className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-zinc-800 px-4 py-3">
           <p className="text-sm font-medium">Claude Code</p>

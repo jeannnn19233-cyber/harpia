@@ -11,6 +11,7 @@ import { Conversations } from './chat/Conversations.tsx'
 import { ReviewsDialog } from './reviews/ReviewsDialog.tsx'
 import { Routines } from './routines/Routines.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
+import { usePendingLearnings } from './insights/Insights.tsx'
 import { MemoryDialog, useOpenFindings, WatcherDialog } from './Watcher.tsx'
 import { TaskWorkspace } from './task/TaskWorkspace.tsx'
 
@@ -38,6 +39,7 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
     useHarpia()
   const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | 'reviews' | 'agent' | null>(null)
   const openFindings = useOpenFindings(projectId)
+  const pendingLearnings = usePendingLearnings(projectId)
 
   useEffect(() => startRealtime(), [])
 
@@ -126,6 +128,11 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
               Vigia
               {openFindings.length > 0 && (
                 <span className="rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-zinc-950">{openFindings.length}</span>
+              )}
+              {pendingLearnings.length > 0 && (
+                <span className="rounded-full bg-sky-500 px-1.5 text-[11px] font-bold text-zinc-950" title="Aprendizados esperando aprovação">
+                  {pendingLearnings.length}
+                </span>
               )}
             </button>
           )}

@@ -3,7 +3,7 @@
 Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio agente de IA
 (Claude Code, Codex), rodando 24h numa VPS.
 
-**Situação:** fases 1, 2, 3, 4 (parte sem IA), 5 e 6 prontas.
+**Situação:** todas as fases do plano prontas (1, 2, 3, 4, 4b, 5 e 6).
 
 - Login com convites, projetos ligados a repositórios git e quadro de tasks em tempo real
   (Backlog, Em andamento, Revisão, Feito), com participantes, histórico completo e comentários.
@@ -23,6 +23,9 @@ Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio age
   manda fica no cofre do Obsidian, que o agente organiza e usa para responder.
 - O **Vigia** avisa tasks paradas, em Revisão sem PR, parecidas e pessoas mexendo nos mesmos
   arquivos, na tela e no Telegram. A **Memória** do projeto entra em toda conversa com os agentes.
+- Com IA, no Claude de quem está envolvido, o vigia confirma as tasks parecidas antes de avisar,
+  escreve o resumo de cada task concluída e sugere aprendizados para o `AGENTS.md` ou a memória,
+  que a equipe aprova.
 
 O plano das próximas fases está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 

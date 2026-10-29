@@ -41,6 +41,9 @@ export interface ProviderInput {
   model: string | null
   // Execução sem ninguém para aprovar: ferramentas e pastas fixas, nada de pedido de aprovação.
   policy: AutomationPolicy | null
+  // Chamada enxuta (vigia, resumos, sugestões): só as instruções como prompt de sistema, sem o do
+  // Claude Code, para gastar poucos tokens. Exige policy.
+  bare?: boolean
   // Contexto que o agente recebe ao começar: a task, a branch e a memória do projeto.
   instructions: string | null
   hooks: ProviderHooks

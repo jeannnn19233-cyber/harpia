@@ -21,7 +21,7 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 | 5 | GitHub: abrir PR pelo Harpia; task vai para "Feito" sozinha quando o PR tem merge | **pronta** |
 | 4 | Vigia: task parada, Revisão sem PR, tasks parecidas e pessoas mexendo nos mesmos arquivos; tasks parecidas ao criar; memória do projeto nas conversas; avisos no Telegram (ideias do Hermes, veja [estudos/hermes.md](estudos/hermes.md)) | **pronta** (parte sem IA) |
 | 2 | Conversas com o Claude e o Codex fora das tasks, com o login de cada pessoa e escolha do modelo | **pronta** |
-| 4b | Partes com IA: julgar tasks parecidas, resumo de cada task concluída, sugestões de aprendizado para o `AGENTS.md`. Rodam no Claude Code de cada pessoa envolvida (decisão dos sócios), nunca numa conta central | |
+| 4b | Partes com IA: julgar tasks parecidas, resumo de cada task concluída, sugestões de aprendizado para o `AGENTS.md` e sugestão de próxima mensagem no Codex. Rodam no Claude Code de cada pessoa envolvida (decisão dos sócios), nunca numa conta central | **pronta** |
 | 6 | Como no Hermes: rotinas agendadas (cron), revisão automática dos PRs no GitHub e o agente pessoal de cada um no Telegram, com o cofre do Obsidian | **pronta** |
 
 ## Onde roda
@@ -195,6 +195,34 @@ O servidor nunca roda git dentro do repositório da pessoa e o agente nunca vê 
   voltar para "Modelo padrão" depois de escolher outro só vale quando a conversa for retomada.
 - Tudo o que vale nas tasks vale aqui: aprovações, mensagens durante o trabalho, sugestão da
   próxima mensagem e avisos no Telegram.
+
+## Regras de negócio da fase 4b
+
+O vigia com IA. Tudo roda no **Claude Code de quem está envolvido**, nunca numa conta central,
+em chamadas enxutas: sem ferramentas, sem o prompt do Claude Code (só as instruções do Harpia)
+e no máximo 2 ao mesmo tempo no servidor. Desliga com `HARPIA_AI_INSIGHTS=off`.
+
+- **Tasks parecidas confirmadas:** a regra fixa (títulos parecidos) encontra o par; antes de
+  avisar, o Claude (Haiku) de quem criou a task mais nova julga se é o mesmo trabalho. Só vira
+  aviso se for, com o motivo ("confirmado pelo Claude de Bruno"). Na dúvida, a IA diz que são
+  diferentes. Se a IA falhar (sem login, sem cota), vale a regra fixa. Cada par é julgado uma
+  vez (de novo só se os títulos mudarem).
+- **Resumo da task concluída:** até 48 h depois de ir para "Feito", o vigia pede ao Claude
+  (Sonnet) do responsável um resumo: o que foi feito, decisões e pendências. Ele lê o histórico,
+  os comentários, as conversas com os agentes, os commits e o diff dos PRs da task, o
+  `AGENTS.md` e a memória do projeto (o servidor monta o material; a IA não abre arquivos). O
+  resumo aparece na task, entra no histórico e vai para o Telegram do responsável. Qualquer
+  pessoa pode pedir "Refazer", com o próprio Claude.
+- **Aprendizados:** junto do resumo, a IA sugere de zero a três regras para o `AGENTS.md`
+  (código, comandos, armadilhas) ou para a memória do projeto (combinados da equipe). As regras
+  do que **não** vira aprendizado vêm da revisão de fim de trabalho do Hermes: falhas de
+  ambiente, "a ferramenta X não funciona", erros passageiros, narrativas de uma tarefa só e
+  tentativas que não deram certo. Ninguém aplica nada sozinho: qualquer pessoa da equipe edita
+  e aprova (ou descarta) na task ou no Vigia. Para a memória, entra direto; para o `AGENTS.md`,
+  o Harpia abre um PR na seção "## Aprendizados" (que passa pela revisão automática como
+  qualquer PR), com a pessoa que aprovou como autora do commit.
+- **Sugestão no Codex:** depois de cada resposta do Codex, o Claude (Haiku) da dona sugere a
+  próxima mensagem, como o Claude faz sozinho. Cada pessoa liga ou desliga em "Minhas IAs".
 
 ## Regras de negócio da fase 6
 

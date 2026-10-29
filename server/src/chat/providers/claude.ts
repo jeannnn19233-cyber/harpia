@@ -294,7 +294,10 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
         settingSources: ['user', 'project', 'local'],
         pathToClaudeCodeExecutable: CLAUDE_BIN,
         spawnClaudeCodeProcess: spawner(spawnAsUser, input.cwd),
-        ...(input.policy ? automationOptions(input.policy, input.cwd) : {})
+        ...(input.policy ? automationOptions(input.policy, input.cwd) : {}),
+        ...(input.bare && input.policy
+          ? { systemPrompt: input.instructions ?? '', promptSuggestions: false, includePartialMessages: false }
+          : {})
       }
     })
     const current = running

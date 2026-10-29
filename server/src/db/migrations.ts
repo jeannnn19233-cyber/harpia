@@ -309,6 +309,45 @@ const MIGRATIONS: string[] = [
     UNIQUE (user_id, source_ref)
   );
   CREATE INDEX idx_vault_items_user ON vault_items(user_id, id);
+  `,
+  // Fase 4b: o vigia com IA (no Claude de quem está envolvido): tasks parecidas confirmadas,
+  // resumo das tasks concluídas, aprendizados para o AGENTS.md e sugestões no Codex.
+  `
+  CREATE TABLE task_summaries (
+    task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL CHECK (status IN ('running', 'ready', 'failed')),
+    summary TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE learnings (
+    id INTEGER PRIMARY KEY,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    target TEXT NOT NULL CHECK (target IN ('agents_md', 'memory')),
+    text TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'applied', 'dismissed')),
+    decided_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    pr_url TEXT,
+    created_at TEXT NOT NULL,
+    decided_at TEXT
+  );
+  CREATE INDEX idx_learnings_project ON learnings(project_id, status);
+  CREATE INDEX idx_learnings_task ON learnings(task_id);
+
+  CREATE TABLE ai_judgments (
+    fingerprint TEXT PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    verdict TEXT NOT NULL CHECK (verdict IN ('duplicate', 'different', 'error')),
+    reason TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  ALTER TABLE users ADD COLUMN codex_suggestions INTEGER NOT NULL DEFAULT 1;
   `
 ]
 

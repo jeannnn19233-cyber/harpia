@@ -9,7 +9,16 @@ import { requireAdmin, requireUser } from './guard.ts'
 import { createInvite, findOpenInvite, markInviteUsed } from './invites.ts'
 import { hashPassword, hashToken, verifyPassword } from './passwords.ts'
 import { createSession, deleteSession, SESSION_COOKIE } from './sessions.ts'
-import { countUsers, emailInUse, findUserByGitHubLogin, getUserWithPassword, insertUser, listUsers, setGitHubLogin } from './users.ts'
+import {
+  countUsers,
+  emailInUse,
+  findUserByGitHubLogin,
+  getUserWithPassword,
+  insertUser,
+  listUsers,
+  setCodexSuggestions,
+  setGitHubLogin
+} from './users.ts'
 
 const accountSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -34,6 +43,8 @@ const profileSchema = z.object({
     .transform((value) => value.replace(/^@/, ''))
     .pipe(z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/, 'Usuário do GitHub inválido.'))
     .nullable()
+    .optional(),
+  codexSuggestions: z.boolean().optional()
 })
 
 const inviteSchema = z.object({
@@ -123,10 +134,14 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
   // Cada pessoa informa o próprio usuário do GitHub: os PRs dela são revisados no Claude dela.
   app.patch('/api/me', async (request) => {
     const user = requireUser(request)
-    const { githubLogin } = parse(profileSchema, request.body)
-    const owner = githubLogin ? findUserByGitHubLogin(ctx.db, githubLogin) : null
-    if (owner && owner.id !== user.id) throw new HttpError(409, `O usuário ${githubLogin} do GitHub já está ligado a ${owner.name}.`)
-    const updated = setGitHubLogin(ctx.db, user.id, githubLogin) as User
+    const { githubLogin, codexSuggestions } = parse(profileSchema, request.body)
+    let updated = user
+    if (githubLogin !== undefined) {
+      const owner = githubLogin ? findUserByGitHubLogin(ctx.db, githubLogin) : null
+      if (owner && owner.id !== user.id) throw new HttpError(409, `O usuário ${githubLogin} do GitHub já está ligado a ${owner.name}.`)
+      updated = setGitHubLogin(ctx.db, user.id, githubLogin) as User
+    }
+    if (codexSuggestions !== undefined) updated = setCodexSuggestions(ctx.db, user.id, codexSuggestions) as User
     ctx.hub.broadcast({ type: 'user', user: updated })
     return { user: updated }
   })

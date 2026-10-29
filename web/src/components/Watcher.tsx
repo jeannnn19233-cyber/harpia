@@ -1,3 +1,4 @@
+import { LearningCard, usePendingLearnings } from './insights/Insights.tsx'
 import { useEffect, useMemo, useState } from 'react'
 import { FINDING_LABELS, PROJECT_MEMORY_LIMIT, type Finding, type NotificationSettings } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
@@ -137,6 +138,22 @@ export function TelegramSection({
 }
 
 // Painel do vigia: avisos abertos do projeto e o vínculo com o Telegram.
+function PendingLearnings({ projectId }: { projectId: number }) {
+  const learnings = usePendingLearnings(projectId)
+  if (learnings.length === 0) return null
+  return (
+    <section className="mb-4 space-y-2 border-t border-zinc-800 pt-4">
+      <h3 className="text-sm font-semibold">Aprendizados esperando aprovação</h3>
+      <p className="text-xs text-zinc-400">
+        Sugeridos pela IA ao fim das tasks. Aprovados, vão para o AGENTS.md do repositório (por PR) ou para a memória do projeto.
+      </p>
+      {learnings.map((learning) => (
+        <LearningCard key={learning.id} learning={learning} showTask />
+      ))}
+    </section>
+  )
+}
+
 export function WatcherDialog({ projectId, onClose }: { projectId: number; onClose: () => void }) {
   const upsertFindings = useHarpia((state) => state.upsertFindings)
   const findings = useOpenFindings(projectId)
@@ -155,8 +172,8 @@ export function WatcherDialog({ projectId, onClose }: { projectId: number; onClo
     <Dialog title="Vigia" onClose={onClose} wide>
       <div className="mb-3 flex items-center gap-3">
         <p className="flex-1 text-sm text-zinc-400">
-          O vigia confere as tasks a cada 5 minutos: tasks paradas, em Revisão sem PR, parecidas, e pessoas alterando os
-          mesmos arquivos.
+          O vigia confere as tasks a cada 5 minutos: tasks paradas, em Revisão sem PR, parecidas (confirmadas pelo Claude de quem
+          criou a task), e pessoas alterando os mesmos arquivos. Ao concluir uma task, ele escreve o resumo e sugere aprendizados.
         </p>
         <button className="btn-outline shrink-0 py-1.5 text-sm" disabled={checking} onClick={() => void check()}>
           {checking ? 'Verificando…' : 'Verificar agora'}
@@ -169,6 +186,7 @@ export function WatcherDialog({ projectId, onClose }: { projectId: number; onClo
           findings.map((finding) => <FindingCard key={finding.id} finding={finding} onOpen={onClose} />)
         )}
       </div>
+      <PendingLearnings projectId={projectId} />
       <TelegramSection />
     </Dialog>
   )

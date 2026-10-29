@@ -7,6 +7,8 @@ import type {
   Chat,
   ChatItem,
   ChatModel,
+  Learning,
+  TaskSummary,
   PrReview,
   Routine,
   RoutineRun,
@@ -120,7 +122,13 @@ export const api = {
   deleteChat: (id: number) => request<{ ok: true }>('DELETE', `/api/chats/${id}`),
   models: (provider: ChatProvider) =>
     request<{ models: ChatModel[]; error: string | null }>('GET', `/api/me/models?provider=${provider}`),
-  updateMe: (input: { githubLogin: string | null }) => request<{ user: User }>('PATCH', '/api/me', input),
+  taskInsights: (taskId: number) => request<{ summary: TaskSummary | null; learnings: Learning[] }>('GET', `/api/tasks/${taskId}/insights`),
+  summarizeTask: (taskId: number) =>
+    request<{ summary: TaskSummary | null; learnings: Learning[] }>('POST', `/api/tasks/${taskId}/summary`, {}),
+  projectLearnings: (projectId: number) => request<{ learnings: Learning[] }>('GET', `/api/projects/${projectId}/learnings`),
+  applyLearning: (id: number, text?: string) => request<{ learning: Learning }>('POST', `/api/learnings/${id}/apply`, text ? { text } : {}),
+  dismissLearning: (id: number) => request<{ learning: Learning }>('POST', `/api/learnings/${id}/dismiss`, {}),
+  updateMe: (input: { githubLogin?: string | null; codexSuggestions?: boolean }) => request<{ user: User }>('PATCH', '/api/me', input),
   reviews: (projectId: number) => request<{ reviews: PrReview[]; github: boolean }>('GET', `/api/projects/${projectId}/reviews`),
   setProjectReview: (projectId: number, enabled: boolean) =>
     request<{ project: Project }>('PUT', `/api/projects/${projectId}/review`, { enabled }),

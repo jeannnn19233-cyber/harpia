@@ -9,16 +9,25 @@ interface UserRow {
   created_at: string
   password_hash: string
   github_login: string | null
+  codex_suggestions: number
 }
 
 function toUser(row: UserRow): User {
-  return { id: row.id, name: row.name, email: row.email, role: row.role, githubLogin: row.github_login, createdAt: row.created_at }
+  return { id: row.id, name: row.name, email: row.email, role: row.role, githubLogin: row.github_login,
+    codexSuggestions: row.codex_suggestions === 1,
+    createdAt: row.created_at
+  }
 }
 
 // Pessoa da equipe dona de um usuário do GitHub (sem diferenciar maiúsculas).
 export function findUserByGitHubLogin(db: Db, login: string): User | null {
   const row = db.prepare('SELECT * FROM users WHERE lower(github_login) = lower(?)').get(login) as UserRow | undefined
   return row ? toUser(row) : null
+}
+
+export function setCodexSuggestions(db: Db, userId: number, enabled: boolean): User | null {
+  db.prepare('UPDATE users SET codex_suggestions = ? WHERE id = ?').run(enabled ? 1 : 0, userId)
+  return getUser(db, userId)
 }
 
 export function setGitHubLogin(db: Db, userId: number, login: string | null): User | null {

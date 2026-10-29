@@ -39,6 +39,7 @@ Em **Environment Variables**:
 | `HARPIA_REVIEW_POLL_SECONDS` | `180` (padrão) | De quanto em quanto tempo o Harpia olha os PRs abertos para a revisão automática. |
 | `HARPIA_REVIEW_SETTLE_SECONDS` | `180` (padrão) | Quanto tempo um PR precisa ficar sem commits novos antes de ser revisado. |
 | `HARPIA_MAX_CONCURRENT_RUNS` | `3` (padrão) | Quantas rotinas podem rodar ao mesmo tempo no servidor. |
+| `HARPIA_AI_INSIGHTS` | ligado (padrão) | `off` desliga o vigia com IA: tasks parecidas confirmadas, resumos, aprendizados e sugestões no Codex. |
 
 Para gerar o código de configuração: `openssl rand -base64 24`.
 

@@ -45,6 +45,8 @@ export class ChatManager {
   private readonly sweeper: ReturnType<typeof setInterval>
   private readonly lister: ModelLister
   private readonly modelsCache = new Map<string, { at: number; models: Promise<ChatModel[]> }>()
+  // Depois de cada vez terminada sem erro (usado para sugerir a próxima mensagem no Codex).
+  onTurnFinished: (chat: StoredChat) => void = () => undefined
   // Quem espera o fim da vez de cada conversa (execuções automáticas).
   private readonly turnWaiters = new Map<number, ((error: string | null) => void)[]>()
 
@@ -102,6 +104,14 @@ export class ChatManager {
       this.dropRuntime(chat.id)
       this.setStatus(chat.id, 'idle')
     }
+  }
+
+  // Sugestão vinda de fora do provedor (ex.: a do Codex, escrita pelo Claude). Só vale se a pessoa
+  // ainda não mandou outra mensagem.
+  applySuggestion(chatId: number, text: string): void {
+    const chat = getChat(this.ctx.db, chatId)
+    if (!chat || chat.status !== 'idle' || chat.suggestion) return
+    this.publish(updateChat(this.ctx.db, chatId, { suggestion: text.slice(0, 500) }, this.ctx.now()))
   }
 
   // Uma vez completa sem ninguém olhando (rotinas, revisões, Telegram): manda a mensagem, espera o
@@ -420,6 +430,8 @@ export class ChatManager {
         if (error) this.addItem(chatId, { kind: 'error', text: error })
         this.setStatus(chatId, 'idle')
         this.resolveTurn(chatId, error)
+        const finished = getChat(this.ctx.db, chatId)
+        if (!error && finished) this.onTurnFinished(finished)
         // Execuções automáticas avisam pelo próprio canal (rotina, revisão, Telegram).
         if (getChat(this.ctx.db, chatId)?.origin !== 'user') return
         this.notifyOwner(chatId, (where, provider) =>

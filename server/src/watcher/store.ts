@@ -44,6 +44,10 @@ export function listOpenFindings(db: Db, projectId: number): Finding[] {
   return rows.map(toFinding)
 }
 
+export function findingExists(db: Db, fingerprint: string): boolean {
+  return db.prepare('SELECT 1 FROM watcher_findings WHERE fingerprint = ?').get(fingerprint) !== undefined
+}
+
 export interface FindingInput {
   projectId: number
   kind: FindingKind

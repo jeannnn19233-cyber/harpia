@@ -31,6 +31,9 @@ import { registerReviewRoutes } from './reviews/routes.ts'
 import { PrReviewer } from './reviews/reviewer.ts'
 import { registerRoutineRoutes } from './routines/routes.ts'
 import { RoutineRunner } from './routines/runner.ts'
+import { AiRunner } from './ai/runner.ts'
+import { Insights } from './insights/insights.ts'
+import { registerInsightRoutes } from './insights/routes.ts'
 import { PersonalAgent } from './vault/agent.ts'
 import { registerVaultRoutes } from './vault/routes.ts'
 import { VaultSync } from './vault/sync.ts'
@@ -76,6 +79,8 @@ export interface AppServices {
   routines: RoutineRunner
   reviews: PrReviewer
   personal: PersonalAgent
+  insights: Insights
+  watcher: Watcher
 }
 
 export async function buildApp(options: BuildOptions): Promise<{ app: FastifyInstance; ctx: AppContext; services: AppServices }> {
@@ -148,13 +153,26 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
   const personal = new PersonalAgent(ctx, chat, routines, { inactivityMs: options.routineLimits?.inactivityMs })
   ctx.notifier.onMessage((user, message, chatId) => personal.handleMessage(user, message, chatId))
   registerVaultRoutes(app, ctx, new VaultSync(ctx, options.config.vaultSyncSeconds))
+  // Vigia com IA (fase 4b): no Claude de quem está envolvido, nunca numa conta central.
+  const insights = new Insights(ctx, new AiRunner(providers, 2))
+  const watcher = new Watcher(ctx, {
+    staleHours: options.config.staleHours,
+    reviewHours: options.config.reviewHours,
+    insights: options.config.aiInsights ? insights : null
+  })
+  insights.onJudged = () => void watcher.sweep().catch(() => undefined)
+  if (options.config.aiInsights) {
+    chat.onTurnFinished = (finished) => insights.suggestFor(finished, (text) => chat.applySuggestion(finished.id, text))
+  }
+  app.addHook('preClose', async () => insights.idle())
   registerPullRoutes(app, ctx)
   registerWatcherRoutes(
     app,
     ctx,
-    new Watcher(ctx, { staleHours: options.config.staleHours, reviewHours: options.config.reviewHours }),
+    watcher,
     options.config.watcherIntervalSeconds
   )
+  registerInsightRoutes(app, ctx, insights)
   registerRealtimeRoutes(app, ctx)
 
   const webDir = options.config.webDir
@@ -176,5 +194,5 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     ctx.db.close()
   })
 
-  return { app, ctx, services: { chat, routines, reviews, personal } }
+  return { app, ctx, services: { chat, routines, reviews, personal, insights, watcher } }
 }

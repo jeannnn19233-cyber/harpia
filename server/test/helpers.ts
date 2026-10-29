@@ -54,6 +54,13 @@ export const fakeGit: GitRunner = {
   },
   async diff() {
     return ''
+  },
+  async readFile() {
+    return null
+  },
+  async commitFile() {},
+  async branchWork() {
+    return null
   }
 }
 
@@ -72,6 +79,7 @@ export async function startServer(
     terminalsEnabled?: boolean
     maxSessionsPerUser?: number
     routineLimits?: { inactivityMs?: number; maxMs?: number }
+    aiInsights?: boolean
   } = {}
 ): Promise<TestServer> {
   const dataDir = options.dataDir ?? mkdtempSync(join(tmpdir(), 'harpia-test-'))
@@ -92,6 +100,7 @@ export async function startServer(
       reviewPollSeconds: 0,
       reviewSettleSeconds: 0,
       vaultSyncSeconds: 0,
+      aiInsights: options.aiInsights ?? false,
       staleHours: 48,
       reviewHours: 24
     },

@@ -18,6 +18,27 @@ const scripted: ProviderFactory = (input) => {
       turn++
       const id = turn
       // Execução automática (rotina): responde sozinho, sem pedir aprovação.
+      // Chamadas enxutas do vigia com IA (fase 4b).
+      if (input.bare) {
+        const instructions = input.instructions ?? ''
+        const reply = instructions.includes('títulos parecidos')
+          ? JSON.stringify({ same: true, reason: 'As duas fazem a mesma tela de pagamento por Pix.' })
+          : instructions.includes('fechamento de uma task')
+            ? JSON.stringify({
+                summary: '**O que foi feito** Checkout com Pix usando QR dinâmico.\n\n**Decisões** QR dinâmico, por segurança.',
+                learnings: [
+                  { target: 'memory', text: 'Pagamentos novos sempre com QR dinâmico.', reason: 'A equipe decidiu isso nesta task.' },
+                  { target: 'agents_md', text: 'Rode npm run check antes de abrir PR: o CI usa o mesmo comando.', reason: 'O PR quebrou no CI.' }
+                ]
+              })
+            : 'Agora rode os testes de ponta a ponta'
+        void (async () => {
+          await sleep(300)
+          input.hooks.onTextDone(`ai${id}`, reply)
+          input.hooks.onTurnEnd(null)
+        })()
+        return
+      }
       if (input.policy && input.instructions?.includes('revisor de código')) {
         void (async () => {
           input.hooks.onToolStart(`rd${id}`, 'Read', 'src/pix.ts')
@@ -140,6 +161,7 @@ const { app } = await buildApp({
     reviewPollSeconds: 0,
     reviewSettleSeconds: 0,
     vaultSyncSeconds: 0,
+    aiInsights: true,
     staleHours: 48,
     reviewHours: 24
   },

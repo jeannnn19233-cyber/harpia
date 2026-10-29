@@ -5,6 +5,7 @@ import type {
   Chat,
   ChatItem,
   Finding,
+  Learning,
   PrReview,
   Project,
   PullRequest,
@@ -13,6 +14,7 @@ import type {
   RoutineRun,
   Task,
   TaskEvent,
+  TaskSummary,
   User
 } from '../../../shared/types.ts'
 
@@ -39,6 +41,9 @@ interface HarpiaState {
   findings: Record<number, Finding>
   routines: Record<number, Routine>
   reviews: Record<number, PrReview>
+  // Fase 4b: resumo de cada task concluída e aprendizados sugeridos.
+  summaries: Record<number, TaskSummary>
+  learnings: Record<number, Learning>
   // Execuções de cada rotina já carregada (mais recentes primeiro).
   routineRuns: Record<number, RoutineRun[]>
 
@@ -60,6 +65,8 @@ interface HarpiaState {
   upsertPulls(pulls: PullRequest[]): void
   upsertFindings(findings: Finding[]): void
   upsertReviews(reviews: PrReview[]): void
+  setSummary(summary: TaskSummary): void
+  upsertLearnings(learnings: Learning[]): void
   setRoutines(routines: Routine[]): void
   upsertRoutine(routine: Routine): void
   setRoutineRuns(routineId: number, runs: RoutineRun[]): void
@@ -112,6 +119,8 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   findings: {},
   routines: {},
   reviews: {},
+  summaries: {},
+  learnings: {},
   routineRuns: {},
 
   setView: (view) => {
@@ -157,6 +166,9 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   upsertChats: (chats) =>
     set((state) => ({ chats: { ...state.chats, ...Object.fromEntries(chats.map((chat) => [chat.id, chat])) } })),
   setChatItems: (chatId, items) => set((state) => ({ chatItems: { ...state.chatItems, [chatId]: items } })),
+  setSummary: (summary) => set((state) => ({ summaries: { ...state.summaries, [summary.taskId]: summary } })),
+  upsertLearnings: (learnings) =>
+    set((state) => ({ learnings: { ...state.learnings, ...Object.fromEntries(learnings.map((learning) => [learning.id, learning])) } })),
   upsertReviews: (reviews) =>
     set((state) => ({ reviews: { ...state.reviews, ...Object.fromEntries(reviews.map((review) => [review.id, review])) } })),
   setRoutines: (routines) => set({ routines: Object.fromEntries(routines.map((routine) => [routine.id, routine])) }),
@@ -199,6 +211,12 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
         break
       case 'pr_review':
         state.upsertReviews([message.review])
+        break
+      case 'task_summary':
+        state.setSummary(message.summary)
+        break
+      case 'learning':
+        state.upsertLearnings([message.learning])
         break
       case 'routine_removed': {
         const { [message.routineId]: _routine, ...routines } = state.routines

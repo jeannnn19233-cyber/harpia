@@ -33,6 +33,7 @@ const { app } = await buildApp({
     reviewPollSeconds: Number(process.env.HARPIA_REVIEW_POLL_SECONDS ?? 180),
     reviewSettleSeconds: Number(process.env.HARPIA_REVIEW_SETTLE_SECONDS ?? 180),
     vaultSyncSeconds: 120,
+    aiInsights: process.env.HARPIA_AI_INSIGHTS !== 'off',
     staleHours: Number(process.env.HARPIA_STALE_HOURS ?? 48),
     reviewHours: Number(process.env.HARPIA_REVIEW_HOURS ?? 24)
   },

@@ -38,6 +38,8 @@ export interface AppConfig {
   reviewSettleSeconds: number
   // De quanto em quanto tempo o servidor confere se a sincronização do cofre com o Obsidian está ligada (0 desliga).
   vaultSyncSeconds: number
+  // Vigia com IA (fase 4b): tasks parecidas confirmadas, resumos, aprendizados e sugestões no Codex.
+  aiInsights: boolean
 }
 
 export interface AppContext {
