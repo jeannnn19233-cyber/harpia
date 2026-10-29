@@ -1,5 +1,6 @@
 import type { Db } from './db/index.ts'
 import type { AgentSystem } from './agents/system.ts'
+import type { GitHubClient } from './github/client.ts'
 import type { GitRunner } from './projects/git.ts'
 import type { RealtimeHub } from './realtime/hub.ts'
 
@@ -20,6 +21,8 @@ export interface AppConfig {
   terminalsEnabled: boolean
   // Limite de sessões abertas ao mesmo tempo por pessoa.
   maxSessionsPerUser: number
+  // De quantos em quantos segundos o servidor confere no GitHub se os PRs tiveram merge.
+  prPollSeconds: number
 }
 
 export interface AppContext {
@@ -28,5 +31,6 @@ export interface AppContext {
   config: AppConfig
   git: GitRunner
   agents: AgentSystem
+  github: GitHubClient
   now: () => Date
 }

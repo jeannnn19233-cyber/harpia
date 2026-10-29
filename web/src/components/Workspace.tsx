@@ -40,6 +40,8 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
     api
       .tasks(projectId)
       .then(({ tasks }) => current && setTasks(tasks))
+      .then(() => api.projectPulls(projectId))
+      .then((result) => current && result && useHarpia.getState().upsertPulls(result.pullRequests))
       .catch(() => undefined)
     return () => {
       current = false

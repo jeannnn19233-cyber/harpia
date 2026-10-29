@@ -3,7 +3,7 @@
 Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio agente de IA
 (Claude Code, Codex), rodando 24h numa VPS.
 
-**Situação:** fases 1 e 3 prontas.
+**Situação:** fases 1, 3 e 5 prontas.
 
 - Login com convites, projetos ligados a repositórios git e quadro de tasks em tempo real
   (Backlog, Em andamento, Revisão, Feito), com participantes, histórico completo e comentários.
@@ -11,6 +11,8 @@ Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio age
   Orca), na própria cópia do código e na própria branch. O agente pede aprovação antes de agir,
   e a equipe acompanha todas as conversas ao vivo. Embaixo do chat fica o terminal de cada um.
 - Cada pessoa conecta a própria assinatura do Claude e do Codex em **Minhas IAs**.
+- Na seção **Entrega**, cada pessoa abre o PR com as próprias alterações. Quando os PRs da task
+  têm merge, ela vai sozinha para "Feito".
 
 O plano das próximas fases está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
@@ -18,6 +20,7 @@ O plano das próximas fases está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 ![Task com duas pessoas, histórico e comentários](docs/assets/task.png)
 ![Chat com o Claude pedindo aprovação, com o terminal embaixo](docs/assets/chat-aprovacao.png)
 ![Conversas da equipe na mesma task](docs/assets/chat-equipe.png)
+![Abrindo o PR com as alterações da task](docs/assets/abrir-pr.png)
 
 ## Rodar no seu computador
 

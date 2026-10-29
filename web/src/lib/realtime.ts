@@ -9,7 +9,10 @@ export async function resync(): Promise<void> {
   store.setUsers(users)
   store.setProjects(projects)
   const { projectId, openTaskId } = useHarpia.getState()
-  if (projectId) store.setTasks((await api.tasks(projectId)).tasks)
+  if (projectId) {
+    store.setTasks((await api.tasks(projectId)).tasks)
+    store.upsertPulls((await api.projectPulls(projectId)).pullRequests)
+  }
   const status = await api.agentsStatus()
   store.setAgentsStatus(status)
   if (status.enabled) {

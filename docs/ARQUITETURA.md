@@ -18,8 +18,8 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 |---|---|---|
 | 1 | Login, convites, projetos (clone do repositório), quadro de tasks em tempo real, histórico e comentários, serviço 24h | **pronta** |
 | 3 | Na task, cada participante conversa com o próprio agente (Claude ou Codex) num chat, numa worktree própria; terminal embaixo do chat; a equipe acompanha tudo ao vivo | **pronta** |
-| 5 | GitHub: abrir PR pelo Harpia; task vai para "Feito" sozinha quando o PR tem merge | próxima |
-| 4 | Agente vigia: avisa task duplicada, gente mexendo nos mesmos arquivos, task parada há muito tempo, task pronta e ainda aberta | |
+| 5 | GitHub: abrir PR pelo Harpia; task vai para "Feito" sozinha quando o PR tem merge | **pronta** |
+| 4 | Agente vigia: avisa task duplicada, gente mexendo nos mesmos arquivos, task parada há muito tempo, task pronta e ainda aberta; memória por projeto e avisos no Telegram (ideias do Hermes, veja [estudos/hermes.md](estudos/hermes.md)) | próxima |
 | 2 | Chat de IA com Claude e Codex usando o login de cada pessoa | |
 
 ## Onde roda
@@ -143,6 +143,28 @@ navegador (xterm.js) ──WebSocket──▶ servidor ──node-pty──▶ r
 - A cada 15 segundos (e ao iniciar) o servidor confere quais sessões ainda existem e registra as
   que terminaram.
 
+## Regras de negócio da fase 5
+
+- Na seção **Entrega** da task, cada pessoa abre o próprio PR com as alterações da sua cópia. O
+  Harpia mostra os arquivos alterados, faz o commit do que estiver pendente (mensagem padrão
+  `T-<número>: <título>`), envia a branch ao GitHub e abre o PR contra a branch principal.
+- Enviar de novo atualiza o mesmo PR.
+- Abrir o PR coloca a pessoa na task e leva a task para "Revisão".
+- A cada minuto (`HARPIA_PR_POLL_SECONDS`) o servidor confere no GitHub os PRs abertos. Quando
+  todos os PRs da task têm merge, ela vai sozinha para "Feito". PR fechado sem merge fica
+  registrado e a task continua aberta.
+- Enquanto houver PR aberto, ninguém move a task para "Feito" na mão.
+
+### Como a branch chega ao GitHub sem expor o token
+
+```
+cópia da pessoa ──git bundle (como h<id>)──▶ arquivo na pasta dela
+servidor (root) ──git fetch do arquivo──▶ espelho ──git push com HARPIA_GITHUB_TOKEN──▶ GitHub
+servidor ──API do GitHub──▶ abre o PR e confere o merge
+```
+
+O servidor nunca roda git dentro do repositório da pessoa e o agente nunca vê o token.
+
 ## Uso do Orca
 
 O [Orca](https://github.com/stablyai/orca) (licença MIT) foi a referência de estudo. O Harpia
@@ -152,3 +174,9 @@ simples (tmux no lugar do processo de terminais do Orca); nenhum código foi cop
 fase 4, os hooks do Claude Code e do Codex que o Orca usa para saber se um agente está
 trabalhando, esperando ou parado (`src/main/agent-hooks`) são a próxima referência. Trechos
 copiados do Orca devem manter o aviso de licença original em `THIRD_PARTY_NOTICES.md`.
+
+## Uso do Hermes
+
+O [Hermes Agent](https://github.com/NousResearch/hermes-agent) (licença MIT) é a referência para a
+fase 4: vigia, memória por projeto e avisos por mensagem. O estudo está em
+[estudos/hermes.md](estudos/hermes.md). Nenhum código foi copiado.

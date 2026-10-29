@@ -1,11 +1,11 @@
 import { execFile, spawn as spawnChild, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { chmod, chown, mkdir, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { spawn } from 'node-pty'
-import type { AgentAccounts, Project, Task, User } from '../../../shared/types.ts'
-import { slugify } from '../projects/store.ts'
+import type { AgentAccounts, ChangedFile, Project, Task, User } from '../../../shared/types.ts'
 import type { AgentSystem, TerminalHandle } from './system.ts'
+import { UserGit } from './user-git.ts'
 
 // Cada pessoa do Harpia vira um usuário Linux "h<id>" com uid fixo. Assim a pasta pessoal,
 // guardada no volume, continua dela mesmo quando o container é recriado.
@@ -148,38 +148,13 @@ export class LinuxAgentSystem implements AgentSystem {
     if (!current.includes(repoPath)) await exec('git', ['config', '--system', '--add', 'safe.directory', repoPath])
   }
 
+  private userGit(user: User): UserGit {
+    return new UserGit((args) => this.asUser(user, args), this.homeDir(user))
+  }
+
   async prepareWorktree(input: { user: User; project: Project; task: Task; mirrorPath: string }) {
-    const { user, project, task, mirrorPath } = input
-    await this.markSafe(mirrorPath)
-
-    const home = this.homeDir(user)
-    const clone = join(home, 'projects', project.slug)
-    if (existsSync(join(clone, '.git'))) {
-      await this.asUser(user, ['git', '-C', clone, 'fetch', '--quiet', '--prune', 'origin'])
-    } else {
-      await this.asUser(user, ['mkdir', '-p', dirname(clone)])
-      await this.asUser(user, ['git', 'clone', '--quiet', '--no-checkout', mirrorPath, clone])
-    }
-
-    const firstName = slugify(user.name.split(/\s+/)[0] ?? 'pessoa')
-    const branch = `harpia/T-${task.number}-${firstName}-${user.id}`
-    const path = join(home, 'worktrees', project.slug, `T-${task.number}`)
-    if (existsSync(path)) return { path, branch }
-
-    await this.asUser(user, ['git', '-C', clone, 'worktree', 'prune'])
-    await this.asUser(user, ['mkdir', '-p', dirname(path)])
-    let branchExists = true
-    try {
-      await this.asUser(user, ['git', '-C', clone, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`])
-    } catch {
-      branchExists = false
-    }
-    // Se a branch já existe (a pasta foi apagada), reaproveita sem perder commits.
-    const args = branchExists
-      ? ['worktree', 'add', '--quiet', path, branch]
-      : ['worktree', 'add', '--quiet', '-b', branch, path, `origin/${project.defaultBranch}`]
-    await this.asUser(user, ['git', '-C', clone, ...args])
-    return { path, branch }
+    await this.markSafe(input.mirrorPath)
+    return this.userGit(input.user).prepareWorktree(input)
   }
 
   async startSession(input: { user: User; name: string; cwd: string; command: string | null }): Promise<void> {
@@ -259,6 +234,26 @@ export class LinuxAgentSystem implements AgentSystem {
       ['-u', this.linuxName(input.user), '--', 'env', '-i', '-C', input.cwd, ...this.env(input.user), ...extra, input.command, ...input.args],
       { cwd: '/', stdio: ['pipe', 'pipe', 'pipe'], env: { PATH } }
     )
+  }
+
+  changedFiles(input: { user: User; path: string; base: string }): Promise<ChangedFile[]> {
+    return this.userGit(input.user).changedFiles(input.path, input.base)
+  }
+
+  hasUncommittedChanges(input: { user: User; path: string }): Promise<boolean> {
+    return this.userGit(input.user).hasUncommittedChanges(input.path)
+  }
+
+  commitAll(input: { user: User; path: string; message: string }): Promise<void> {
+    return this.userGit(input.user).commitAll(input.path, input.message)
+  }
+
+  commitsAhead(input: { user: User; path: string; base: string }): Promise<number> {
+    return this.userGit(input.user).commitsAhead(input.path, input.base)
+  }
+
+  exportBranch(input: { user: User; path: string; branch: string }): Promise<string> {
+    return this.userGit(input.user).exportBranch(input.path, input.branch)
   }
 
   async accounts(user: User): Promise<AgentAccounts> {

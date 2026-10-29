@@ -1,11 +1,13 @@
 // Servidor para testes de interface: agentes de mentira, sem internet nem tmux.
 // Uso: node --disable-warning=ExperimentalWarning server/test/e2e-server.ts <pasta-de-dados>
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { buildApp } from '../src/app.ts'
 import type { ProviderFactory } from '../src/chat/providers/types.ts'
+import type { GitHubClient } from '../src/github/client.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
+import { fakeGit } from './helpers.ts'
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms))
 
@@ -45,6 +47,30 @@ const scripted: ProviderFactory = (input) => {
 }
 
 const dataDir = resolve(process.argv[2] ?? mkdtempSync(join(tmpdir(), 'harpia-e2e-')))
+
+// GitHub de mentira: o PR "tem merge" quando existe o arquivo merge-<número> na pasta de dados.
+let nextPull = 41
+const github: GitHubClient = {
+  async createPullRequest() {
+    nextPull++
+    return { number: nextPull, url: `https://github.com/clarumi/loja/pull/${nextPull}`, state: 'open', merged: false }
+  },
+  async findOpenPullRequest() {
+    return null
+  },
+  async getPullRequest(_repo, number) {
+    const merged = existsSync(join(dataDir, `merge-${number}`))
+    return { number, url: `https://github.com/clarumi/loja/pull/${number}`, state: merged ? 'closed' : 'open', merged }
+  }
+}
+
+// Alterações de mentira na cópia de cada pessoa.
+const agents = new FakeAgentSystem()
+agents.changes = [
+  { path: 'src/checkout/Pix.tsx', status: '?', additions: null, deletions: null },
+  { path: 'src/checkout/index.ts', status: 'M', additions: 42, deletions: 3 }
+]
+agents.uncommitted = true
 const { app } = await buildApp({
   config: {
     dataDir,
@@ -54,11 +80,13 @@ const { app } = await buildApp({
     allowedOrigins: [],
     setupCode: null,
     terminalsEnabled: true,
-    maxSessionsPerUser: 5
+    maxSessionsPerUser: 5,
+    prPollSeconds: 60
   },
-  agents: new FakeAgentSystem(),
+  agents,
+  github,
   chatProviders: scripted,
-  git: { clone: async () => {}, fetch: async () => {}, defaultBranch: async () => 'main', branchExists: async () => true }
+  git: fakeGit
 })
 await app.listen({ host: '127.0.0.1', port: Number(process.env.PORT ?? 7421) })
 console.log('pronto')

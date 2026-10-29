@@ -131,6 +131,23 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   CREATE INDEX idx_chat_items_chat ON chat_items(chat_id, id);
+  `,
+  // Pull requests abertos pelo Harpia.
+  `
+  CREATE TABLE pull_requests (
+    id INTEGER PRIMARY KEY,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    base TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('open', 'merged', 'closed')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_pull_requests_task ON pull_requests(task_id);
+  CREATE INDEX idx_pull_requests_state ON pull_requests(state);
   `
 ]
 

@@ -6,6 +6,7 @@ import { buildApp } from '../src/app.ts'
 import type { AppContext } from '../src/context.ts'
 import type { AgentSystem } from '../src/agents/system.ts'
 import type { ProviderFactory } from '../src/chat/providers/types.ts'
+import type { GitHubClient } from '../src/github/client.ts'
 import type { GitRunner } from '../src/projects/git.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 
@@ -16,6 +17,19 @@ export interface TestServer {
   close(keepData?: boolean): Promise<void>
 }
 
+// Por padrão, os testes nunca falam com o GitHub de verdade.
+export const offlineGitHub: GitHubClient = {
+  async createPullRequest() {
+    throw new Error('Este teste não configurou o GitHub.')
+  },
+  async findOpenPullRequest() {
+    return null
+  },
+  async getPullRequest() {
+    throw new Error('Este teste não configurou o GitHub.')
+  }
+}
+
 export const fakeGit: GitRunner = {
   async clone() {},
   async fetch() {},
@@ -24,7 +38,9 @@ export const fakeGit: GitRunner = {
   },
   async branchExists() {
     return true
-  }
+  },
+  async importBundle() {},
+  async push() {}
 }
 
 export async function startServer(
@@ -32,6 +48,7 @@ export async function startServer(
     git?: GitRunner
     agents?: AgentSystem
     chatProviders?: ProviderFactory
+    github?: GitHubClient
     dataDir?: string
     allowedOrigins?: string[]
     setupCode?: string
@@ -49,8 +66,10 @@ export async function startServer(
       allowedOrigins: options.allowedOrigins ?? [],
       setupCode: options.setupCode ?? null,
       terminalsEnabled: options.terminalsEnabled ?? false,
-      maxSessionsPerUser: options.maxSessionsPerUser ?? 5
+      maxSessionsPerUser: options.maxSessionsPerUser ?? 5,
+      prPollSeconds: 3600
     },
+    github: options.github ?? offlineGitHub,
     git: options.git ?? fakeGit,
     agents: options.agents ?? new FakeAgentSystem(),
     chatProviders: options.chatProviders ?? (() => {

@@ -3,11 +3,13 @@ import type {
   AgentKind,
   AgentSession,
   AgentsStatus,
+  ChangedFile,
   Chat,
   ChatItem,
   ChatProvider,
   Invite,
   PermissionMode,
+  PullRequest,
   Project,
   Task,
   TaskDetail,
@@ -89,5 +91,17 @@ export const api = {
     request<{ item: ChatItem }>('POST', `/api/chats/${id}/approvals/${itemId}`, { decision }),
   setPermissionMode: (id: number, permissionMode: PermissionMode) =>
     request<{ chat: Chat }>('PATCH', `/api/chats/${id}`, { permissionMode }),
-  closeChat: (id: number) => request<{ chat: Chat }>('POST', `/api/chats/${id}/close`, {})
+  closeChat: (id: number) => request<{ chat: Chat }>('POST', `/api/chats/${id}/close`, {}),
+
+  projectPulls: (projectId: number) => request<{ pullRequests: PullRequest[] }>('GET', `/api/projects/${projectId}/pull-requests`),
+  taskPulls: (taskId: number) => request<{ pullRequests: PullRequest[] }>('GET', `/api/tasks/${taskId}/pull-requests`),
+  taskChanges: (taskId: number) =>
+    request<{ hasWorktree: boolean; branch: string | null; files: ChangedFile[]; uncommitted: boolean }>(
+      'GET',
+      `/api/tasks/${taskId}/changes`
+    ),
+  openPull: (taskId: number, input: { title: string; body: string; commitMessage?: string }) =>
+    request<{ pullRequest: PullRequest; created: boolean }>('POST', `/api/tasks/${taskId}/pull-requests`, input),
+  refreshPulls: (taskId: number) =>
+    request<{ pullRequests: PullRequest[] }>('POST', `/api/tasks/${taskId}/pull-requests/refresh`, {})
 }

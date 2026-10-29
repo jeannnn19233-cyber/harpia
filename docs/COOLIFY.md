@@ -37,8 +37,8 @@ Em **Environment Variables**:
 Para gerar o código de configuração: `openssl rand -base64 24`.
 
 O token do GitHub pode ser um *fine-grained token* com acesso só aos repositórios da equipe e
-permissão **Contents: Read** (na fase 5, quando o Harpia abrir PRs, ela passa a ser
-**Read and write**, mais **Pull requests: Read and write**).
+as permissões **Contents: Read and write** (para enviar as branches) e **Pull requests: Read and
+write** (para abrir os PRs e saber quando tiveram merge).
 
 ## 4. Limites de recursos
 

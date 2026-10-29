@@ -5,6 +5,7 @@ import type {
   Chat,
   ChatItem,
   Project,
+  PullRequest,
   RealtimeMessage,
   Task,
   TaskEvent,
@@ -26,6 +27,7 @@ interface HarpiaState {
   chats: Record<number, Chat>
   // Itens de cada conversa já carregada (as outras ainda não foram abertas).
   chatItems: Record<number, ChatItem[]>
+  pulls: Record<number, PullRequest>
 
   setMe(me: User | null): void
   setUsers(users: User[]): void
@@ -41,6 +43,7 @@ interface HarpiaState {
   upsertSessions(sessions: AgentSession[]): void
   upsertChats(chats: Chat[]): void
   setChatItems(chatId: number, items: ChatItem[]): void
+  upsertPulls(pulls: PullRequest[]): void
   apply(message: RealtimeMessage): void
 }
 
@@ -75,6 +78,7 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   sessions: {},
   chats: {},
   chatItems: {},
+  pulls: {},
 
   setMe: (me) => set({ me }),
   setUsers: (users) => set({ users: Object.fromEntries(users.map((user) => [user.id, user])) }),
@@ -111,6 +115,8 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   upsertChats: (chats) =>
     set((state) => ({ chats: { ...state.chats, ...Object.fromEntries(chats.map((chat) => [chat.id, chat])) } })),
   setChatItems: (chatId, items) => set((state) => ({ chatItems: { ...state.chatItems, [chatId]: items } })),
+  upsertPulls: (pulls) =>
+    set((state) => ({ pulls: { ...state.pulls, ...Object.fromEntries(pulls.map((pull) => [pull.id, pull])) } })),
 
   apply: (message) => {
     const state = get()
@@ -129,6 +135,9 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
         break
       case 'session':
         state.upsertSessions([message.session])
+        break
+      case 'pull_request':
+        state.upsertPulls([message.pullRequest])
         break
       case 'chat':
         state.upsertChats([message.chat])

@@ -7,6 +7,10 @@ export interface GitRunner {
   fetch(repoPath: string): Promise<void>
   defaultBranch(repoPath: string): Promise<string>
   branchExists(repoPath: string, branch: string): Promise<boolean>
+  // Traz para o espelho a branch empacotada (git bundle) na cópia de uma pessoa.
+  importBundle(repoPath: string, bundlePath: string, branch: string): Promise<void>
+  // Envia a branch do espelho para o repositório remoto (GitHub).
+  push(repoPath: string, remoteUrl: string, branch: string): Promise<void>
 }
 
 // Com HARPIA_GITHUB_TOKEN definido, o git usa esse token para repositórios privados do GitHub.
@@ -48,6 +52,12 @@ export const systemGit: GitRunner = {
   },
   defaultBranch(repoPath) {
     return run(['symbolic-ref', '--short', 'HEAD'], repoPath)
+  },
+  async importBundle(repoPath, bundlePath, branch) {
+    await run(['fetch', '--quiet', bundlePath, `+refs/heads/${branch}:refs/heads/${branch}`], repoPath)
+  },
+  async push(repoPath, remoteUrl, branch) {
+    await run(['push', '--quiet', remoteUrl, `refs/heads/${branch}:refs/heads/${branch}`], repoPath)
   },
   async branchExists(repoPath, branch) {
     try {

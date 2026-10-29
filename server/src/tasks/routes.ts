@@ -7,6 +7,7 @@ import { getUser } from '../auth/users.ts'
 import { transaction } from '../db/index.ts'
 import { HttpError, parse, parseId } from '../http/errors.ts'
 import { getProject } from '../projects/store.ts'
+import { countOpenPulls, listTaskPulls } from '../pulls/store.ts'
 import {
   addParticipant,
   endOfColumn,
@@ -103,6 +104,14 @@ export function registerTaskRoutes(app: FastifyInstance, ctx: AppContext): void 
     const task = loadTask((request.params as { id: string }).id)
     const input = parse(updateSchema, request.body)
     if (input.ownerId !== undefined && input.ownerId !== null) ensureUserExists(input.ownerId)
+    // Com PR aberto, "Feito" depende do merge: a task fecha sozinha.
+    if (input.status === 'done' && task.status !== 'done' && countOpenPulls(ctx.db, task.id) > 0) {
+      const numbers = listTaskPulls(ctx.db, task.id)
+        .filter((pull) => pull.state === 'open')
+        .map((pull) => `#${pull.number}`)
+        .join(', ')
+      throw new HttpError(409, `Esta task tem PR aberto (${numbers}). Ela vai para "Feito" sozinha quando o merge for feito.`)
+    }
 
     return commit(task.id, () => {
       const now = ctx.now()

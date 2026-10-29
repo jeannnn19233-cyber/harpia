@@ -24,7 +24,8 @@ const { app } = await buildApp({
       .filter(Boolean),
     setupCode: process.env.HARPIA_SETUP_CODE?.trim() || null,
     terminalsEnabled: process.env.HARPIA_TERMINALS === 'on',
-    maxSessionsPerUser: Number(process.env.HARPIA_MAX_SESSIONS_PER_USER ?? 5)
+    maxSessionsPerUser: Number(process.env.HARPIA_MAX_SESSIONS_PER_USER ?? 5),
+    prPollSeconds: Number(process.env.HARPIA_PR_POLL_SECONDS ?? 60)
   },
   logger: { level: process.env.HARPIA_LOG_LEVEL ?? 'info' }
 })

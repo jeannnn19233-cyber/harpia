@@ -24,7 +24,8 @@ function positionBefore(column: Task[], targetId: number | null, movingId: numbe
 }
 
 function TaskCard({ task, onDragStart }: { task: Task; onDragStart: (event: DragEvent, task: Task) => void }) {
-  const { users, online, openTask, chats } = useHarpia()
+  const { users, online, openTask, chats, pulls } = useHarpia()
+  const taskPulls = Object.values(pulls).filter((pull) => pull.taskId === task.id && pull.state !== 'closed')
   // Conversas com agentes nesta task: quem está trabalhando ou esperando aprovação.
   const busyChats = Object.values(chats).filter(
     (chat) => chat.taskId === task.id && (chat.status === 'working' || chat.status === 'waiting')
@@ -48,6 +49,20 @@ function TaskCard({ task, onDragStart }: { task: Task; onDragStart: (event: Drag
         <span className="mt-0.5 shrink-0 font-mono text-xs text-zinc-500">T-{task.number}</span>
         <span className="text-sm leading-snug font-medium">{task.title}</span>
       </div>
+      {taskPulls.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {taskPulls.map((pull) => (
+            <span
+              key={pull.id}
+              className={`rounded-full border px-1.5 py-0.5 font-mono text-[10px] ${
+                pull.state === 'merged' ? 'border-violet-700 text-violet-300' : 'border-sky-700 text-sky-300'
+              }`}
+            >
+              PR #{pull.number}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="mt-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           {owner && <Avatar user={owner} size="sm" online={online.includes(owner.id)} />}

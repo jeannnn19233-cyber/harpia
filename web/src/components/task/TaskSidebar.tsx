@@ -13,6 +13,7 @@ import { api } from '../../lib/api.ts'
 import { fullDate, timeAgo } from '../../lib/format.ts'
 import { useHarpia } from '../../lib/store.ts'
 import { Avatar } from '../Avatar.tsx'
+import { DeliverySection } from './Delivery.tsx'
 
 function describe(event: TaskEvent, users: Record<number, User>): string {
   const name = (id: unknown) => (typeof id === 'number' ? (users[id]?.name ?? 'alguém') : 'ninguém')
@@ -25,7 +26,17 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
       const labels = fields.map((field) => (field === 'title' ? 'o título' : 'a descrição'))
       return `editou ${labels.join(' e ')}`
     }
+    case 'pr_opened':
+      return `abriu o PR #${event.data.number}`
+    case 'pr_updated':
+      return `enviou novas alterações para o PR #${event.data.number}`
+    case 'pr_merged':
+      return `o PR #${event.data.number} de ${name(event.data.userId)} teve merge`
+    case 'pr_closed':
+      return `o PR #${event.data.number} de ${name(event.data.userId)} foi fechado sem merge`
     case 'status_changed':
+      if (event.data.reason === 'merged') return 'concluiu a task: todos os PRs tiveram merge'
+      if (event.data.reason === 'pr_opened') return `moveu para ${status(event.data.to)} ao abrir o PR #${event.data.number}`
       if (event.data.reason === 'agent') return `começou a trabalhar: moveu para ${status(event.data.to)}`
       return `moveu de ${status(event.data.from)} para ${status(event.data.to)}`
     case 'owner_changed':
@@ -69,7 +80,16 @@ function Timeline({ taskId }: { taskId: number }) {
         const actor = event.actorId ? users[event.actorId] : undefined
         return (
           <li key={event.id} className="flex gap-3">
-            <Avatar user={actor} size="sm" />
+            {actor ? (
+              <Avatar user={actor} size="sm" />
+            ) : (
+              <span
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-zinc-950"
+                title="Ação automática do Harpia"
+              >
+                H
+              </span>
+            )}
             <div className="min-w-0 flex-1">
               <p className="text-sm">
                 <span className="font-medium">{actor?.name ?? 'Harpia'}</span>{' '}
@@ -103,6 +123,9 @@ export function TaskSidebar({ taskId }: { taskId: number }) {
   useEffect(() => {
     if (task) setDescription(task.description)
   }, [task?.description])
+
+  // Um erro antigo (ex.: "a task tem PR aberto") perde o sentido quando o status muda.
+  useEffect(() => setError(null), [task?.status])
 
   if (!task || !me) return null
 
@@ -195,6 +218,8 @@ export function TaskSidebar({ taskId }: { taskId: number }) {
             </ul>
           )}
         </section>
+
+        <DeliverySection task={task} />
 
         <section>
           <h3 className="mb-2 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Descrição</h3>

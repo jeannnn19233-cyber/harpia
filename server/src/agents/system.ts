@@ -1,5 +1,5 @@
 import type { ChildProcess } from 'node:child_process'
-import type { AgentAccounts, Project, Task, User } from '../../../shared/types.ts'
+import type { AgentAccounts, ChangedFile, Project, Task, User } from '../../../shared/types.ts'
 
 // Terminal ligado a uma sessão do tmux, visto por uma pessoa no navegador.
 export interface TerminalHandle {
@@ -31,6 +31,15 @@ export interface AgentSystem {
   // Roda um programa como o usuário da pessoa, com entrada e saída ligadas ao servidor
   // (usado pelos chats). env acrescenta variáveis ao ambiente limpo da pessoa.
   spawnPiped(input: { user: User; command: string; args: string[]; cwd: string; env?: Record<string, string> }): ChildProcess
+
+  // Git na cópia de trabalho da pessoa (sempre como o usuário dela).
+  // Arquivos alterados em relação à branch principal, incluindo o que ainda não foi commitado.
+  changedFiles(input: { user: User; path: string; base: string }): Promise<ChangedFile[]>
+  hasUncommittedChanges(input: { user: User; path: string }): Promise<boolean>
+  commitAll(input: { user: User; path: string; message: string }): Promise<void>
+  commitsAhead(input: { user: User; path: string; base: string }): Promise<number>
+  // Empacota a branch num arquivo (git bundle) que o servidor importa no espelho. Devolve o caminho.
+  exportBranch(input: { user: User; path: string; branch: string }): Promise<string>
 }
 
 // Comando que cada tipo de sessão abre. Ao sair do agente, a pessoa cai num shell no mesmo lugar.

@@ -52,6 +52,10 @@ export interface Task {
 }
 
 export type TaskEventType =
+  | 'pr_opened'
+  | 'pr_updated'
+  | 'pr_merged'
+  | 'pr_closed'
   | 'chat_started'
   | 'agent_started'
   | 'agent_stopped'
@@ -179,6 +183,31 @@ export type ChatItem = ChatItemBase &
 
 export type ChatItemKind = ChatItem['kind']
 
+// Entrega pelo GitHub (fase 5).
+export type PullRequestState = 'open' | 'merged' | 'closed'
+
+export interface PullRequest {
+  id: number
+  taskId: number
+  userId: number
+  number: number
+  url: string
+  branch: string
+  base: string
+  state: PullRequestState
+  createdAt: string
+  updatedAt: string
+}
+
+// Arquivo alterado na cópia de trabalho da pessoa, em relação à branch principal.
+export interface ChangedFile {
+  path: string
+  // A: novo, M: alterado, D: apagado, ?: ainda não versionado
+  status: 'A' | 'M' | 'D' | '?'
+  additions: number | null
+  deletions: number | null
+}
+
 // Mensagens enviadas pelo servidor em tempo real (WebSocket).
 export type RealtimeMessage =
   | { type: 'presence'; userIds: number[] }
@@ -189,3 +218,4 @@ export type RealtimeMessage =
   | { type: 'session'; session: AgentSession }
   | { type: 'chat'; chat: Chat }
   | { type: 'chat_item'; item: ChatItem }
+  | { type: 'pull_request'; pullRequest: PullRequest }

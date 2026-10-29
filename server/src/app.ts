@@ -18,7 +18,9 @@ import { deleteExpiredSessions } from './auth/sessions.ts'
 import type { AppConfig, AppContext } from './context.ts'
 import { openDatabase } from './db/index.ts'
 import { registerErrorHandler } from './http/errors.ts'
+import { createGitHubClient, type GitHubClient } from './github/client.ts'
 import { systemGit, type GitRunner } from './projects/git.ts'
+import { registerPullRoutes } from './pulls/routes.ts'
 import { registerProjectRoutes } from './projects/routes.ts'
 import { RealtimeHub } from './realtime/hub.ts'
 import { registerRealtimeRoutes } from './realtime/routes.ts'
@@ -30,6 +32,7 @@ export interface BuildOptions {
   git?: GitRunner
   agents?: AgentSystem
   chatProviders?: ProviderFactory
+  github?: GitHubClient
   now?: () => Date
 }
 
@@ -60,6 +63,9 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     agents:
       options.agents ??
       (await LinuxAgentSystem.create({ homesDir: join(dataDir, 'homes'), runDir: join(dataDir, 'run') })),
+    github:
+      options.github ??
+      createGitHubClient({ token: process.env.HARPIA_GITHUB_TOKEN ?? null, apiUrl: process.env.HARPIA_GITHUB_API_URL }),
     now: options.now ?? (() => new Date())
   }
 
@@ -81,6 +87,7 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
       return input.provider === 'claude' ? createClaudeProvider(input, spawn) : createCodexProvider(input, spawn)
     })
   registerChatRoutes(app, ctx, new ChatManager(ctx, providers))
+  registerPullRoutes(app, ctx)
   registerRealtimeRoutes(app, ctx)
 
   const webDir = options.config.webDir

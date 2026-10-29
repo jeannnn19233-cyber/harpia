@@ -1,5 +1,5 @@
 import type { ChildProcess } from 'node:child_process'
-import type { AgentAccounts, Project, Task, User } from '../../shared/types.ts'
+import type { AgentAccounts, ChangedFile, Project, Task, User } from '../../shared/types.ts'
 import type { AgentSystem, TerminalHandle } from '../src/agents/system.ts'
 
 // Versão em memória do sistema de agentes, para testar as rotas sem tmux nem usuários Linux.
@@ -63,6 +63,33 @@ export class FakeAgentSystem implements AgentSystem {
 
   spawnPiped(): ChildProcess {
     throw new Error('Os testes usam provedores de chat falsos.')
+  }
+
+  changes: ChangedFile[] = []
+  uncommitted = false
+  ahead = 0
+  readonly commits: string[] = []
+
+  async changedFiles(_input: { user: User; path: string; base: string }): Promise<ChangedFile[]> {
+    return this.changes
+  }
+
+  async hasUncommittedChanges(_input: { user: User; path: string }): Promise<boolean> {
+    return this.uncommitted
+  }
+
+  async commitAll(input: { message: string }): Promise<void> {
+    this.commits.push(input.message)
+    this.uncommitted = false
+    this.ahead++
+  }
+
+  async commitsAhead(_input: { user: User; path: string; base: string }): Promise<number> {
+    return this.ahead
+  }
+
+  async exportBranch(input: { branch: string }): Promise<string> {
+    return `/fake/export/${input.branch}.bundle`
   }
 
   async accounts(user: User): Promise<AgentAccounts> {
