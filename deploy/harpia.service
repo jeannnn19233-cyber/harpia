@@ -1,0 +1,21 @@
+# Serviço systemd do Harpia: mantém o servidor ligado 24h e reinicia se cair.
+# Instalação: veja docs/VPS.md.
+[Unit]
+Description=Harpia - workspace da equipe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=harpia
+Group=harpia
+WorkingDirectory=/opt/harpia
+EnvironmentFile=/etc/harpia.env
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/src/index.ts
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,24 @@
+{
+  "name": "harpia",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Workspace colaborativo para times que trabalham com agentes de IA.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server",
+    "test": "npm run test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "check": "npm run typecheck && npm test && npm run build"
+  }
+}

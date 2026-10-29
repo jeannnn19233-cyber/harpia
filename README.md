@@ -1,0 +1,38 @@
+# Harpia
+
+Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio agente de IA
+(Claude Code, Codex), rodando 24h numa VPS.
+
+**Situação:** fase 1 pronta. Há login com convites, projetos ligados a repositórios git, quadro
+de tasks em tempo real (Backlog, Em andamento, Revisão, Feito), participantes por task,
+histórico completo e comentários. O plano das próximas fases está em
+[docs/ARQUITETURA.md](docs/ARQUITETURA.md).
+
+![Quadro de tasks](docs/assets/quadro.png)
+![Task com duas pessoas, histórico e comentários](docs/assets/task.png)
+
+## Rodar no seu computador
+
+Precisa de Node.js 22.18 ou mais novo.
+
+```bash
+npm install
+npm run dev:server   # terminal 1: servidor em http://127.0.0.1:7420
+npm run dev:web      # terminal 2: interface em http://localhost:5173
+```
+
+Os dados de desenvolvimento ficam em `~/.harpia`. Para começar do zero, apague essa pasta.
+
+## Comandos
+
+| Comando | O que faz |
+|---|---|
+| `npm test` | testes do servidor |
+| `npm run typecheck` | checagem de tipos do servidor e da interface |
+| `npm run build` | compila a interface em `web/dist` |
+| `npm start` | servidor de produção (serve também a interface compilada) |
+| `npm run check` | tudo acima, antes de enviar mudanças |
+
+## Colocar na VPS
+
+Veja [docs/VPS.md](docs/VPS.md).

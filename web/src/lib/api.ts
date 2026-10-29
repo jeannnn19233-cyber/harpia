@@ -1,0 +1,54 @@
+import type { Invite, Project, Task, TaskDetail, TaskEvent, TaskStatus, User } from '../../../shared/types.ts'
+
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  })
+  const data = (await response.json().catch(() => ({}))) as { error?: string }
+  if (!response.ok) throw new ApiError(response.status, data.error ?? `Erro ${response.status}`)
+  return data as T
+}
+
+export const api = {
+  status: () => request<{ needsSetup: boolean }>('GET', '/api/status'),
+  me: () => request<{ user: User }>('GET', '/api/me'),
+  setup: (input: { name: string; email: string; password: string }) =>
+    request<{ user: User }>('POST', '/api/setup', input),
+  login: (input: { email: string; password: string }) => request<{ user: User }>('POST', '/api/login', input),
+  logout: () => request<{ ok: true }>('POST', '/api/logout', {}),
+
+  users: () => request<{ users: User[] }>('GET', '/api/users'),
+  createInvite: (role: 'admin' | 'member') => request<{ invite: Invite }>('POST', '/api/invites', { role }),
+  checkInvite: (token: string) => request<{ invite: { role: string; expiresAt: string } }>('GET', `/api/invites/${token}`),
+  acceptInvite: (token: string, input: { name: string; email: string; password: string }) =>
+    request<{ user: User }>('POST', `/api/invites/${token}/accept`, input),
+
+  projects: () => request<{ projects: Project[] }>('GET', '/api/projects'),
+  createProject: (input: { name: string; repoUrl: string; defaultBranch?: string }) =>
+    request<{ project: Project }>('POST', '/api/projects', input),
+  recloneProject: (id: number) => request<{ project: Project }>('POST', `/api/projects/${id}/clone`, {}),
+
+  tasks: (projectId: number) => request<{ tasks: Task[] }>('GET', `/api/projects/${projectId}/tasks`),
+  createTask: (projectId: number, input: { title: string; description?: string; ownerId?: number | null }) =>
+    request<{ task: Task }>('POST', `/api/projects/${projectId}/tasks`, input),
+  task: (id: number) => request<TaskDetail>('GET', `/api/tasks/${id}`),
+  updateTask: (
+    id: number,
+    input: Partial<{ title: string; description: string; status: TaskStatus; ownerId: number | null; position: number }>
+  ) => request<{ task: Task; events: TaskEvent[] }>('PATCH', `/api/tasks/${id}`, input),
+  joinTask: (id: number) => request<{ task: Task }>('POST', `/api/tasks/${id}/join`, {}),
+  leaveTask: (id: number) => request<{ task: Task }>('POST', `/api/tasks/${id}/leave`, {}),
+  comment: (id: number, body: string) => request<{ event: TaskEvent }>('POST', `/api/tasks/${id}/comments`, { body })
+}
