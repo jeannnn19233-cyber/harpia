@@ -71,6 +71,11 @@ O mesmo servidor roda o Clarumi. Para o Harpia nunca disputar recursos com ele, 
 Com os agentes de IA ligados, conte cerca de 1 GB de memória por agente aberto ao mesmo tempo
 (por exemplo, 4 CPUs e 6 GB para 3 pessoas com 2 agentes cada).
 
+O revisor de PRs roda as suítes do projeto dentro do container. A integração do Clarumi sobe um
+Postgres por suíte e usa até 1 GB por processo do Jest: conte mais **3 GB e 2 CPUs** por revisor
+rodando a integração ao mesmo tempo (o Harpia roda no máximo `HARPIA_MAX_CONCURRENT_RUNS`
+execuções juntas).
+
 ## 5. Deploy e primeiro acesso
 
 1. Clique em **Deploy**. O Coolify usa o `HEALTHCHECK` do Dockerfile (`/api/health`) para saber
@@ -168,5 +173,7 @@ Sync (`obsidian-headless`) já vem na imagem; cada pessoa conecta o dela em "Meu
   Hermes. Roda como o usuário Linux da pessoa, numa cópia do PR sem nenhuma credencial do GitHub;
   `git push`, `gh`, chamadas à API do GitHub, rebase e leitura de `.env` e das pastas de
   credenciais são barrados. Quem envia os commits e publica é o servidor, depois do portão.
-- O container do Harpia nunca recebe o `docker.sock` do servidor. Por isso as suítes de
-  integração que sobem Docker não rodam na revisão.
+- O container do Harpia nunca recebe o `docker.sock` do servidor. Para a integração, a imagem
+  traz o Postgres 16 (só os binários, sem serviço): cada suíte sobe um servidor descartável do
+  próprio usuário Linux da pessoa, ouvindo só em `127.0.0.1` e com senha. Suítes que precisam
+  de Docker para outra coisa ficam puladas na revisão.
