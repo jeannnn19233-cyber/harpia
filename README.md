@@ -3,7 +3,7 @@
 Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio agente de IA
 (Claude Code, Codex), rodando 24h numa VPS.
 
-**Situação:** todas as fases do plano prontas (1, 2, 3, 4, 4b, 5 e 6).
+**Situação:** todas as fases do plano prontas (1, 2, 3, 4, 4b, 5, 6, 6b e 7).
 
 - Login com convites, projetos ligados a repositórios git e quadro de tasks em tempo real
   (Backlog, Em andamento, Revisão, Feito), com participantes, histórico completo e comentários.
@@ -63,6 +63,14 @@ Os dados de desenvolvimento ficam em `~/.harpia`. Para começar do zero, apague 
 O Harpia também tem um app para Mac, Windows e Linux, que abre o servidor da equipe numa janela
 própria, com avisos do sistema quando um agente pede aprovação ou termina. Veja
 [docs/DESKTOP.md](docs/DESKTOP.md).
+
+**Para instalar:** abra este repositório no seu Claude Code e peça "instale o app do Harpia" (a
+skill `instalar-app` cuida do resto). Ou, no Terminal do Mac:
+
+```bash
+git clone https://github.com/jeannnn19233-cyber/harpia.git ~/harpia-app 2>/dev/null || git -C ~/harpia-app pull
+bash ~/harpia-app/desktop/scripts/instalar-mac.sh
+```
 
 ## Colocar no servidor
 

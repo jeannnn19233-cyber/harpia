@@ -11,3 +11,4 @@ Vale para Claude Code, Codex e qualquer outro agente.
 - Toda mudança de estado de uma task gera um evento em `task_events` e é transmitida pelo
   `RealtimeHub`.
 - Rode `npm run check` antes de dar a tarefa por concluída.
+- Pedido para instalar ou atualizar o app de computador do Harpia: siga `.claude/skills/instalar-app/SKILL.md`.
