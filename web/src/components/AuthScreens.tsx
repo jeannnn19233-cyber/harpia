@@ -26,13 +26,23 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+interface AccountInput {
+  name: string
+  email: string
+  password: string
+  setupCode?: string
+}
+
 function AccountForm({
   submitLabel,
+  askSetupCode = false,
   onSubmit
 }: {
   submitLabel: string
-  onSubmit: (input: { name: string; email: string; password: string }) => Promise<void>
+  askSetupCode?: boolean
+  onSubmit: (input: AccountInput) => Promise<void>
 }) {
+  const [setupCode, setSetupCode] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -44,7 +54,7 @@ function AccountForm({
     setBusy(true)
     setError(null)
     try {
-      await onSubmit({ name, email, password })
+      await onSubmit(askSetupCode ? { name, email, password, setupCode } : { name, email, password })
     } catch (err) {
       setError((err as Error).message)
       setBusy(false)
@@ -53,8 +63,20 @@ function AccountForm({
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-6">
+      {askSetupCode && (
+        <Field label="Código de configuração (definido no servidor)">
+          <input
+            className="input font-mono"
+            type="password"
+            value={setupCode}
+            onChange={(e) => setSetupCode(e.target.value)}
+            required
+            autoFocus
+          />
+        </Field>
+      )}
       <Field label="Nome">
-        <input className="input" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} required autoFocus={!askSetupCode} />
       </Field>
       <Field label="E-mail">
         <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -77,10 +99,14 @@ function AccountForm({
   )
 }
 
-export function SetupScreen({ onDone }: { onDone: (user: User) => void }) {
+export function SetupScreen({ askSetupCode, onDone }: { askSetupCode: boolean; onDone: (user: User) => void }) {
   return (
     <Shell title="Configuração inicial" subtitle="Crie a conta de administrador. Depois você convida a equipe.">
-      <AccountForm submitLabel="Criar conta" onSubmit={async (input) => onDone((await api.setup(input)).user)} />
+      <AccountForm
+        submitLabel="Criar conta"
+        askSetupCode={askSetupCode}
+        onSubmit={async (input) => onDone((await api.setup(input)).user)}
+      />
     </Shell>
   )
 }

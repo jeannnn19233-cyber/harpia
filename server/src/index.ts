@@ -17,7 +17,8 @@ const { app } = await buildApp({
     allowedOrigins: (process.env.HARPIA_ALLOWED_ORIGINS ?? '')
       .split(',')
       .map((value) => value.trim().replace(/\/+$/, ''))
-      .filter(Boolean)
+      .filter(Boolean),
+    setupCode: process.env.HARPIA_SETUP_CODE?.trim() || null
   },
   logger: { level: process.env.HARPIA_LOG_LEVEL ?? 'info' }
 })

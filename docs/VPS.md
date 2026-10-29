@@ -1,4 +1,7 @@
-# Instalando o Harpia numa VPS
+# Instalando o Harpia numa VPS (sem Coolify)
+
+> A equipe usa o Coolify: veja [COOLIFY.md](COOLIFY.md). Este guia é a alternativa para uma VPS
+> sem Coolify.
 
 Guia para deixar o Harpia rodando 24h numa VPS Linux (Ubuntu 24.04), acessível só pela
 equipe através do Tailscale.

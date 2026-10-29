@@ -11,17 +11,41 @@ afterEach(async () => {
   await server.close()
 })
 
+it('responde à verificação de saúde sem login', async () => {
+  const response = await server.app.inject({ method: 'GET', url: '/api/health' })
+  expect(response.json()).toEqual({ ok: true })
+})
+
 describe('configuração inicial', () => {
   it('pede configuração enquanto não há usuários e cria o primeiro administrador', async () => {
     const before = await server.app.inject({ method: 'GET', url: '/api/status' })
-    expect(before.json()).toEqual({ needsSetup: true })
+    expect(before.json()).toEqual({ needsSetup: true, setupCodeRequired: false })
 
     const { cookie } = await setupAdmin(server.app)
     const me = await server.app.inject({ method: 'GET', url: '/api/me', headers: { cookie } })
     expect(me.json().user).toMatchObject({ name: 'Ana Admin', role: 'admin' })
 
     const after = await server.app.inject({ method: 'GET', url: '/api/status' })
-    expect(after.json()).toEqual({ needsSetup: false })
+    expect(after.json()).toEqual({ needsSetup: false, setupCodeRequired: false })
+  })
+
+  it('com código de configuração definido, só quem tem o código cria a primeira conta', async () => {
+    await server.close()
+    server = await startServer({ setupCode: 'codigo-secreto' })
+    const status = await server.app.inject({ method: 'GET', url: '/api/status' })
+    expect(status.json().setupCodeRequired).toBe(true)
+
+    const account = { name: 'Ana', email: 'ana@exemplo.com', password: 'senha-forte-1' }
+    const missing = await server.app.inject({ method: 'POST', url: '/api/setup', payload: account })
+    expect(missing.statusCode).toBe(403)
+    const wrong = await server.app.inject({ method: 'POST', url: '/api/setup', payload: { ...account, setupCode: 'errado' } })
+    expect(wrong.statusCode).toBe(403)
+    const right = await server.app.inject({
+      method: 'POST',
+      url: '/api/setup',
+      payload: { ...account, setupCode: 'codigo-secreto' }
+    })
+    expect(right.statusCode).toBe(200)
   })
 
   it('não deixa configurar duas vezes', async () => {

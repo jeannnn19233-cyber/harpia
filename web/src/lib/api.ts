@@ -22,9 +22,9 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 }
 
 export const api = {
-  status: () => request<{ needsSetup: boolean }>('GET', '/api/status'),
+  status: () => request<{ needsSetup: boolean; setupCodeRequired: boolean }>('GET', '/api/status'),
   me: () => request<{ user: User }>('GET', '/api/me'),
-  setup: (input: { name: string; email: string; password: string }) =>
+  setup: (input: { name: string; email: string; password: string; setupCode?: string }) =>
     request<{ user: User }>('POST', '/api/setup', input),
   login: (input: { email: string; password: string }) => request<{ user: User }>('POST', '/api/login', input),
   logout: () => request<{ ok: true }>('POST', '/api/logout', {}),

@@ -15,6 +15,7 @@ function inviteToken(): string | null {
 export function App() {
   const setMe = useHarpia((state) => state.setMe)
   const [screen, setScreen] = useState<Screen>('loading')
+  const [setupCodeRequired, setSetupCodeRequired] = useState(false)
   const token = inviteToken()
 
   const enter = (user: User) => {
@@ -25,8 +26,9 @@ export function App() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { needsSetup } = await api.status()
-        if (needsSetup) return setScreen('setup')
+        const status = await api.status()
+        setSetupCodeRequired(status.setupCodeRequired)
+        if (status.needsSetup) return setScreen('setup')
         if (token) return setScreen('invite')
         enter((await api.me()).user)
       } catch (err) {
@@ -52,7 +54,7 @@ export function App() {
         </div>
       )
     case 'setup':
-      return <SetupScreen onDone={enter} />
+      return <SetupScreen askSetupCode={setupCodeRequired} onDone={enter} />
     case 'invite':
       return <InviteScreen token={token ?? ''} onDone={enter} />
     case 'login':

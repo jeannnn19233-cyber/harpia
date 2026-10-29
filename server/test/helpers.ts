@@ -20,7 +20,9 @@ export const fakeGit: GitRunner = {
   }
 }
 
-export async function startServer(options: { git?: GitRunner; allowedOrigins?: string[] } = {}): Promise<TestServer> {
+export async function startServer(
+  options: { git?: GitRunner; allowedOrigins?: string[]; setupCode?: string } = {}
+): Promise<TestServer> {
   const dataDir = mkdtempSync(join(tmpdir(), 'harpia-test-'))
   const { app, ctx } = await buildApp({
     config: {
@@ -28,7 +30,8 @@ export async function startServer(options: { git?: GitRunner; allowedOrigins?: s
       reposDir: join(dataDir, 'repos'),
       cookieSecure: false,
       webDir: null,
-      allowedOrigins: options.allowedOrigins ?? []
+      allowedOrigins: options.allowedOrigins ?? [],
+      setupCode: options.setupCode ?? null
     },
     git: options.git ?? fakeGit
   })

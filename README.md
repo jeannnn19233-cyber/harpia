@@ -33,6 +33,7 @@ Os dados de desenvolvimento ficam em `~/.harpia`. Para começar do zero, apague 
 | `npm start` | servidor de produção (serve também a interface compilada) |
 | `npm run check` | tudo acima, antes de enviar mudanças |
 
-## Colocar na VPS
+## Colocar no servidor
 
-Veja [docs/VPS.md](docs/VPS.md).
+- **Coolify (o que a equipe usa):** [docs/COOLIFY.md](docs/COOLIFY.md).
+- Sem Coolify, direto numa VPS com systemd e Tailscale: [docs/VPS.md](docs/VPS.md).

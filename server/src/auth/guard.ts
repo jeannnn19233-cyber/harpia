@@ -12,6 +12,7 @@ declare module 'fastify' {
 
 // Rotas da API que funcionam sem login.
 const PUBLIC_ROUTES = new Set([
+  'GET /api/health',
   'GET /api/status',
   'POST /api/setup',
   'POST /api/login',

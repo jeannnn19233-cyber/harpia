@@ -13,6 +13,8 @@ export interface AppConfig {
   // Endereços pelos quais a equipe abre o Harpia (ex.: https://harpia.tailnet.ts.net).
   // Necessário quando um proxy, como o tailscale serve, troca o cabeçalho Host.
   allowedOrigins: string[]
+  // Código exigido para criar a primeira conta. null permite criar sem código.
+  setupCode: string | null
 }
 
 export interface AppContext {

@@ -5,11 +5,21 @@ export interface GitRunner {
   currentBranch(repoPath: string): Promise<string>
 }
 
+// Com HARPIA_GITHUB_TOKEN definido, o git usa esse token para repositórios privados do GitHub.
+// O token chega ao git pela variável de ambiente, nunca pela linha de comando.
+const TOKEN_HELPER = [
+  '-c',
+  'credential.https://github.com.helper=',
+  '-c',
+  'credential.https://github.com.helper=!f() { echo username=x-access-token; echo "password=$HARPIA_GITHUB_TOKEN"; }; f'
+]
+
 function run(args: string[], cwd?: string): Promise<string> {
+  const auth = process.env.HARPIA_GITHUB_TOKEN ? TOKEN_HELPER : []
   return new Promise((resolve, reject) => {
     execFile(
       'git',
-      args,
+      [...auth, ...args],
       {
         cwd,
         // Nunca abre prompt de senha: sem credencial configurada na VPS, falha logo.

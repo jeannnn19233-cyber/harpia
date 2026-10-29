@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import type { User } from '../../../shared/types.ts'
@@ -6,7 +7,7 @@ import { transaction } from '../db/index.ts'
 import { HttpError, parse } from '../http/errors.ts'
 import { requireAdmin, requireUser } from './guard.ts'
 import { createInvite, findOpenInvite, markInviteUsed } from './invites.ts'
-import { hashPassword, verifyPassword } from './passwords.ts'
+import { hashPassword, hashToken, verifyPassword } from './passwords.ts'
 import { createSession, deleteSession, SESSION_COOKIE } from './sessions.ts'
 import { countUsers, emailInUse, getUserWithPassword, insertUser, listUsers } from './users.ts'
 
@@ -14,6 +15,10 @@ const accountSchema = z.object({
   name: z.string().trim().min(1).max(80),
   email: z.string().trim().toLowerCase().email().max(200),
   password: z.string().min(8, 'mínimo de 8 caracteres').max(200)
+})
+
+const setupSchema = accountSchema.extend({
+  setupCode: z.string().max(200).optional()
 })
 
 const loginSchema = z.object({
@@ -43,11 +48,26 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
     })
   }
 
-  app.get('/api/status', async () => ({ needsSetup: countUsers(ctx.db) === 0 }))
+  // Usado pelo Docker/Coolify para saber se o servidor está de pé.
+  app.get('/api/health', async () => ({ ok: true }))
+
+  app.get('/api/status', async () => ({
+    needsSetup: countUsers(ctx.db) === 0,
+    setupCodeRequired: ctx.config.setupCode !== null
+  }))
+
+  function checkSetupCode(code: string | undefined): void {
+    const expected = ctx.config.setupCode
+    if (expected === null) return
+    const matches = timingSafeEqual(Buffer.from(hashToken(code ?? '')), Buffer.from(hashToken(expected)))
+    if (!matches) throw new HttpError(403, 'Código de configuração incorreto.')
+  }
 
   // Cria o primeiro usuário (administrador). Só funciona com o banco vazio.
   app.post('/api/setup', async (request, reply) => {
-    const input = parse(accountSchema, request.body)
+    const { setupCode, ...input } = parse(setupSchema, request.body)
+    if (countUsers(ctx.db) > 0) throw new HttpError(409, 'O Harpia já foi configurado.')
+    checkSetupCode(setupCode)
     const passwordHash = await hashPassword(input.password)
     const user = transaction(ctx.db, () => {
       if (countUsers(ctx.db) > 0) throw new HttpError(409, 'O Harpia já foi configurado.')
