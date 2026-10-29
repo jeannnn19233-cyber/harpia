@@ -295,9 +295,11 @@ pessoa, sem marca de ferramenta.
   e continua quando ela responde na tela.
 - **Vigia do revisor** (port do `vigia_cron_revisor.py`): 3 falhas seguidas pelo mesmo motivo
   avisam no Telegram uma vez; a volta ao normal também avisa.
-- **Limite conhecido:** suítes que precisam de Docker (integração com Postgres de verdade) não
-  rodam no container do Harpia, que de propósito não tem acesso ao Docker do servidor. O
-  revisor diz no texto o que não conseguiu rodar.
+- **Integração sem Docker:** o container do Harpia de propósito não tem acesso ao Docker do
+  servidor, mas traz os binários do Postgres 16. Projetos que aceitam um Postgres local nos
+  testes (o Clarumi, com `CLARUMI_POSTGRES_DE_TESTE=local`) sobem um servidor descartável por
+  suíte, como o Testcontainers faria. O que precisa de Docker para outra coisa (imagem do nginx,
+  `docker cp`) fica pulado, e o revisor diz no texto o que não rodou.
 - Se o PR saiu de uma task do Harpia, cada execução entra no histórico da task.
 
 ### Vigias do deploy (botão "Deploy" no quadro)

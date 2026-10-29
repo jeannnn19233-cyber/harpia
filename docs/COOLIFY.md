@@ -173,5 +173,7 @@ Sync (`obsidian-headless`) já vem na imagem; cada pessoa conecta o dela em "Meu
   Hermes. Roda como o usuário Linux da pessoa, numa cópia do PR sem nenhuma credencial do GitHub;
   `git push`, `gh`, chamadas à API do GitHub, rebase e leitura de `.env` e das pastas de
   credenciais são barrados. Quem envia os commits e publica é o servidor, depois do portão.
-- O container do Harpia nunca recebe o `docker.sock` do servidor. Por isso as suítes de
-  integração que sobem Docker não rodam na revisão.
+- O container do Harpia nunca recebe o `docker.sock` do servidor. Para a integração, a imagem
+  traz o Postgres 16 (só os binários, sem serviço): cada suíte sobe um servidor descartável do
+  próprio usuário Linux da pessoa, ouvindo só em `127.0.0.1` e com senha. Suítes que precisam
+  de Docker para outra coisa ficam puladas na revisão.
