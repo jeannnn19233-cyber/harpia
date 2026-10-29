@@ -116,6 +116,8 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
   const pending = new Map<number, Pending>()
   let threadId: string | null = input.resumeId
   let turnId: string | null = null
+  // Vez em andamento, que aceita mensagens no meio (turn/steer).
+  let activeTurnId: string | null = null
   let closed = false
   let stderr = ''
 
@@ -169,7 +171,9 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
     } else if (typeof message.method === 'string') {
       if (message.method === 'turn/started') {
         turnId = String(((message.params as Json).turn as Json | undefined)?.id ?? turnId)
+        activeTurnId = turnId
       }
+      if (message.method === 'turn/completed') activeTurnId = null
       mapper.notification(message.method, (message.params ?? {}) as Json)
     }
   }
@@ -218,7 +222,23 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
         input: [{ type: 'text', text, text_elements: [] }],
         approvalPolicy: APPROVAL_POLICY[input.permissionMode]
       })) as { turn?: { id?: string } }
-      if (response.turn?.id) turnId = response.turn.id
+      if (response.turn?.id) {
+        turnId = response.turn.id
+        activeTurnId = response.turn.id
+      }
+    },
+    async steer(text) {
+      if (!threadId || !activeTurnId) return this.send(text)
+      try {
+        await request('turn/steer', {
+          threadId,
+          expectedTurnId: activeTurnId,
+          input: [{ type: 'text', text, text_elements: [] }]
+        })
+      } catch {
+        // A vez acabou no meio do caminho: a mensagem começa uma vez nova.
+        await this.send(text)
+      }
     },
     async interrupt() {
       if (threadId && turnId) await request('turn/interrupt', { threadId, turnId })

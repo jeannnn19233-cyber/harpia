@@ -10,6 +10,7 @@ interface ChatRow {
   status: ChatStatus
   permission_mode: PermissionMode
   provider_session_id: string | null
+  suggestion: string | null
   branch: string | null
   cwd: string
   created_at: string
@@ -48,6 +49,7 @@ function toChat(row: ChatRow): StoredChat {
     permissionMode: row.permission_mode,
     providerSessionId: row.provider_session_id,
     branch: row.branch,
+    suggestion: row.suggestion,
     cwd: row.cwd,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -121,17 +123,24 @@ export function insertChat(
 export function updateChat(
   db: Db,
   id: number,
-  fields: Partial<{ title: string; status: ChatStatus; permissionMode: PermissionMode; providerSessionId: string }>,
+  fields: Partial<{
+    title: string
+    status: ChatStatus
+    permissionMode: PermissionMode
+    providerSessionId: string
+    suggestion: string | null
+  }>,
   now: Date
 ): StoredChat | null {
   const columns: Record<string, string> = {
     title: 'title',
     status: 'status',
     permissionMode: 'permission_mode',
-    providerSessionId: 'provider_session_id'
+    providerSessionId: 'provider_session_id',
+    suggestion: 'suggestion'
   }
   const sets: string[] = []
-  const values: string[] = []
+  const values: (string | null)[] = []
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) continue
     sets.push(`${columns[key]} = ?`)

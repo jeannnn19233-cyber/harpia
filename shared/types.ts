@@ -154,6 +154,8 @@ export interface Chat {
   status: ChatStatus
   permissionMode: PermissionMode
   branch: string | null
+  // Próxima mensagem sugerida pelo agente (só o Claude oferece).
+  suggestion: string | null
   createdAt: string
   updatedAt: string
 }
@@ -167,7 +169,8 @@ interface ChatItemBase {
 
 export type ChatItem = ChatItemBase &
   (
-    | { kind: 'user'; text: string; authorId: number }
+    // steer: mensagem enviada enquanto o agente trabalhava; entra no meio da vez dele.
+    | { kind: 'user'; text: string; authorId: number; steer?: boolean }
     | { kind: 'assistant'; text: string; streaming: boolean }
     | { kind: 'tool'; name: string; summary: string; status: 'running' | 'done' | 'failed'; output: string | null }
     | {

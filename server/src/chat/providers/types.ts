@@ -12,6 +12,8 @@ export interface ProviderHooks {
   requestApproval(input: { title: string; detail: string; signal?: AbortSignal }): Promise<'allow' | 'deny'>
   // Aviso sobre o andamento (ex.: tentando reconectar). Atualiza o mesmo aviso durante a vez.
   onNotice(text: string): void
+  // Próxima mensagem que a pessoa provavelmente vai querer mandar.
+  onSuggestion(text: string): void
   onTurnEnd(error: string | null): void
   // O processo do agente terminou (por erro ou porque foi fechado).
   onExit(error: string | null): void
@@ -19,6 +21,8 @@ export interface ProviderHooks {
 
 export interface ProviderAdapter {
   send(text: string): Promise<void>
+  // Mensagem enviada enquanto o agente trabalha: entra no meio da vez dele.
+  steer(text: string): Promise<void>
   interrupt(): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   close(): void

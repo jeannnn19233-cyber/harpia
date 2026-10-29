@@ -23,7 +23,7 @@ async function waitFor(check: () => boolean | Promise<boolean>): Promise<void> {
 
 async function chatState(chatId: number) {
   return (await api('GET', `/api/chats/${chatId}`, ana.cookie)).json() as {
-    chat: { status: string; title: string; permissionMode: string }
+    chat: { status: string; title: string; permissionMode: string; suggestion: string | null }
     items: Record<string, unknown>[]
   }
 }
@@ -106,14 +106,50 @@ describe('conversas com agentes', () => {
     expect(view.statusCode).toBe(200)
   })
 
-  it('não aceita nova mensagem enquanto o agente trabalha', async () => {
+  it('mensagem enviada enquanto o agente trabalha entra no meio da vez dele', async () => {
     const chat = await openChat()
-    await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, { text: 'primeira' })
-    const second = await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, { text: 'segunda' })
-    expect(second.statusCode).toBe(409)
+    await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, { text: 'rode os testes' })
+    const second = await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, {
+      text: 'Enquanto os testes rodam, siga para a parte 4'
+    })
+    expect(second.statusCode).toBe(200)
+    expect(providers.created).toHaveLength(1)
+    expect(providers.last().sent).toEqual(['rode os testes'])
+    expect(providers.last().steered).toEqual(['Enquanto os testes rodam, siga para a parte 4'])
+
+    const state = await chatState(chat.id)
+    expect(state.chat.status).toBe('working')
+    expect(state.items.at(-1)).toMatchObject({ kind: 'user', steer: true })
 
     await api('POST', `/api/chats/${chat.id}/interrupt`, ana.cookie)
     expect(providers.last().interrupted).toBe(1)
+  })
+
+  it('com aprovação pendente, pede a resposta antes de outra mensagem', async () => {
+    const chat = await openChat()
+    await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, { text: 'x' })
+    void providers.last().hooks.requestApproval({ title: 'Usar Bash', detail: 'ls' })
+    const response = await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, { text: 'y' })
+    expect(response.statusCode).toBe(409)
+    expect(response.json().error).toContain('aprovação')
+  })
+
+  it('guarda a sugestão de próxima mensagem e limpa quando a pessoa envia', async () => {
+    const chat = await openChat()
+    await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, { text: 'primeira' })
+    providers.last().hooks.onTurnEnd(null)
+    providers.last().hooks.onSuggestion('Agora rode os testes de integração')
+    expect((await chatState(chat.id)).chat).toMatchObject({ status: 'idle', suggestion: 'Agora rode os testes de integração' })
+    await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, { text: 'Agora rode os testes de integração' })
+    expect((await chatState(chat.id)).chat.suggestion).toBeNull()
+  })
+
+  it('volta a "trabalhando" se o agente continuar depois do fim da vez', async () => {
+    const chat = await openChat()
+    await api('POST', `/api/chats/${chat.id}/messages`, ana.cookie, { text: 'primeira' })
+    providers.last().hooks.onTurnEnd(null)
+    providers.last().hooks.onTextDelta('m9', 'continuando a parte 4…')
+    expect((await chatState(chat.id)).chat.status).toBe('working')
   })
 
   it('pede aprovação e espera a decisão da dona da conversa', async () => {

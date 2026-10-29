@@ -32,11 +32,15 @@ const scripted: ProviderFactory = (input) => {
           input.hooks.onToolEnd(`b${id}`, true, '✓ 12 testes passaram')
           input.hooks.onTextDone(`f${id}`, 'Pronto. Os testes passaram:\n\n```\n✓ 12 testes\n```')
           input.hooks.onTurnEnd(null)
+          input.hooks.onSuggestion('Agora siga para a parte 4')
         } else {
           input.hooks.onToolEnd(`b${id}`, false, null)
           input.hooks.onTurnEnd('A pessoa recusou o comando.')
         }
       })()
+    },
+    async steer(text) {
+      input.hooks.onNotice(`Mensagem recebida durante o trabalho: "${text}"`)
     },
     async interrupt() {
       input.hooks.onTurnEnd('Interrompido.')

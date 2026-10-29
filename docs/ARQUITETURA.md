@@ -95,6 +95,14 @@ Inspirada no Orca: a conversa com o agente é o centro do trabalho.
   paradas há mais de 20 minutos têm o processo desligado para poupar memória; a próxima
   mensagem retoma a mesma conversa (o Claude e o Codex guardam o histórico na pasta da pessoa).
 - Se o servidor reinicia no meio de uma resposta, a conversa avisa e volta a esperar mensagem.
+- Dá para mandar mensagem enquanto o agente trabalha (ex.: "enquanto os testes rodam, siga
+  para a parte 4"). Ela entra no meio do trabalho, sem parar o que ele está fazendo: no Claude,
+  como nova mensagem na mesma sessão; no Codex, pelo `turn/steer` do app-server. A mensagem
+  fica marcada como "enviada durante o trabalho". Enquanto o agente espera uma aprovação, a
+  pessoa responde o pedido primeiro.
+- Ao fim de cada resposta, o Claude sugere a próxima mensagem (recurso nativo do Claude Code,
+  `promptSuggestions`). A sugestão aparece acima da caixa de texto: Tab preenche, "Enviar
+  sugestão" manda direto. O Codex não tem esse recurso, então lá não aparece sugestão.
 - O terminal embaixo do chat é de apoio: abre só quando a pessoa pede, na cópia dela, e não
   mexe no histórico da task. Os terminais dos colegas aparecem como abas só de leitura.
 

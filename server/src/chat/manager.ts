@@ -60,8 +60,21 @@ export class ChatManager {
   }
 
   async send(chat: StoredChat, author: User, text: string): Promise<void> {
-    if (chat.status === 'working' || chat.status === 'waiting') {
-      throw new HttpError(409, 'O agente ainda está trabalhando. Espere terminar ou interrompa.')
+    if (chat.status === 'waiting') {
+      throw new HttpError(409, 'O agente está esperando sua aprovação. Responda o pedido antes de mandar outra mensagem.')
+    }
+    if (chat.suggestion) this.publish(updateChat(this.ctx.db, chat.id, { suggestion: null }, this.ctx.now()))
+    // Com o agente trabalhando, a mensagem entra no meio da vez dele, como no Claude Code.
+    const running = this.runtimes.get(chat.id)
+    if (chat.status === 'working' && running) {
+      this.addItem(chat.id, { kind: 'user', text, authorId: author.id, steer: true })
+      running.lastActiveAt = Date.now()
+      try {
+        await running.adapter.steer(text)
+      } catch (error) {
+        this.addItem(chat.id, { kind: 'error', text: `Não foi possível entregar a mensagem ao agente: ${(error as Error).message}` })
+      }
+      return
     }
     this.addItem(chat.id, { kind: 'user', text, authorId: author.id })
     if (chat.title === 'Nova conversa') {
@@ -211,6 +224,7 @@ export class ChatManager {
       onTextDelta: (key, delta) => {
         if (!current()) return
         touch()
+        this.markWorking(chatId)
         const existing = runtime.items.get(key)
         if (existing === undefined) {
           const item = this.addItem(chatId, { kind: 'assistant', text: delta, streaming: true })
@@ -232,6 +246,7 @@ export class ChatManager {
       onToolStart: (key, name, summary) => {
         if (!current()) return
         touch()
+        this.markWorking(chatId)
         const existing = runtime.items.get(key)
         if (existing === undefined) {
           runtime.items.set(key, this.addItem(chatId, { kind: 'tool', name, summary, status: 'running', output: null }).id)
@@ -264,6 +279,10 @@ export class ChatManager {
           })
         })
       },
+      onSuggestion: (text) => {
+        if (!current()) return
+        this.publish(updateChat(this.ctx.db, chatId, { suggestion: text.slice(0, 500) }, this.ctx.now()))
+      },
       onNotice: (text) => {
         if (!current()) return
         touch()
@@ -294,6 +313,11 @@ export class ChatManager {
         }
       }
     }
+  }
+
+  // Uma mensagem enviada bem no fim da vez pode abrir uma vez nova: o agente volta a trabalhar.
+  private markWorking(chatId: number): void {
+    if (getChat(this.ctx.db, chatId)?.status === 'idle') this.setStatus(chatId, 'working')
   }
 
   private finishStreaming(runtime: Runtime): void {

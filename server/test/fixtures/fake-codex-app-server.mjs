@@ -37,4 +37,9 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     return notify('turn/completed', { threadId: 'thread-novo', turn: { id: 'turn-1', status: 'failed', error: { message: 'Comando recusado' } } })
   }
   if (message.method === 'turn/interrupt') return send({ id: message.id, result: {} })
+  if (message.method === 'turn/steer') {
+    if (message.params.expectedTurnId !== 'turn-1') return send({ id: message.id, error: { message: 'vez errada' } })
+    send({ id: message.id, result: { turnId: 'turn-1' } })
+    return notify('item/agentMessage/delta', { itemId: 'steer-1', delta: `Também vou: ${message.params.input[0].text}` })
+  }
 })

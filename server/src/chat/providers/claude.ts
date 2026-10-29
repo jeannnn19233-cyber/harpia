@@ -124,6 +124,9 @@ export class ClaudeMessageMapper {
         return this.handleAssistant(message.message as unknown as { id: string; content: Record<string, unknown>[] }, message.error)
       case 'user':
         return this.handleToolResults(message.message as unknown as { content: unknown })
+      case 'prompt_suggestion':
+        if (message.suggestion.trim()) this.hooks.onSuggestion(message.suggestion.trim())
+        return
       case 'result': {
         let error: string | null = null
         if (message.is_error) {
@@ -234,6 +237,8 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
         cwd: input.cwd,
         resume: input.resumeId ?? undefined,
         includePartialMessages: true,
+        // Depois de cada vez, o Claude sugere a próxima mensagem (quase grátis: usa o cache da conversa).
+        promptSuggestions: true,
         permissionMode: SDK_MODES[input.permissionMode],
         allowDangerouslySkipPermissions: true,
         canUseTool,
@@ -266,6 +271,11 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
 
   return {
     async send(text) {
+      if (!running) start()
+      queue.push({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null })
+    },
+    // O Claude Code lê mensagens novas durante a vez e as considera no próximo passo.
+    async steer(text) {
       if (!running) start()
       queue.push({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null })
     },

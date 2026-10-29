@@ -5,6 +5,7 @@ import type { ProviderAdapter, ProviderFactory, ProviderHooks, ProviderInput } f
 export class FakeProvider implements ProviderAdapter {
   readonly input: ProviderInput
   readonly sent: string[] = []
+  readonly steered: string[] = []
   interrupted = 0
   closed = false
   mode: PermissionMode
@@ -20,6 +21,10 @@ export class FakeProvider implements ProviderAdapter {
 
   async send(text: string): Promise<void> {
     this.sent.push(text)
+  }
+
+  async steer(text: string): Promise<void> {
+    this.steered.push(text)
   }
 
   async interrupt(): Promise<void> {

@@ -203,6 +203,10 @@ const MIGRATIONS: string[] = [
     INSERT INTO tasks_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
   END;
   INSERT INTO tasks_fts(tasks_fts) VALUES ('rebuild');
+  `,
+  // Sugestão da próxima mensagem em cada conversa.
+  `
+  ALTER TABLE chats ADD COLUMN suggestion TEXT;
   `
 ]
 

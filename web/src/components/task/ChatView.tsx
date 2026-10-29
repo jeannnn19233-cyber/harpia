@@ -118,14 +118,25 @@ export function ChatView({ chatId }: { chatId: number }) {
     }
   }
 
-  const send = async (event?: FormEvent) => {
+  const waiting = chat.status === 'waiting'
+  const suggestion = chat.suggestion
+
+  const send = async (event?: FormEvent, override?: string) => {
     event?.preventDefault()
-    const message = text.trim()
-    if (!message || busy) return
+    const message = (override ?? text).trim()
+    if (!message || waiting) return
     setText('')
     stickToBottom.current = true
     await run(() => api.sendMessage(chat.id, message))
   }
+
+  const placeholder = waiting
+    ? 'Responda o pedido de aprovação acima para continuar.'
+    : busy
+      ? 'O agente está trabalhando. Sua mensagem entra no meio do trabalho dele (ex.: "enquanto isso, siga para a parte 4").'
+      : suggestion
+        ? `${suggestion}   (Tab para usar)`
+        : `Mensagem para o ${CHAT_PROVIDER_LABELS[chat.provider]} (Enter envia, Shift+Enter quebra linha)`
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -184,8 +195,9 @@ export function ChatView({ chatId }: { chatId: number }) {
             switch (item.kind) {
               case 'user':
                 return (
-                  <div key={item.id} className="flex justify-end">
+                  <div key={item.id} className="flex flex-col items-end gap-1">
                     <div className="max-w-[85%] rounded-2xl bg-zinc-800 px-4 py-2.5 text-sm whitespace-pre-wrap">{item.text}</div>
+                    {item.steer && <span className="text-[11px] text-zinc-500">enviada durante o trabalho do agente</span>}
                   </div>
                 )
               case 'assistant':
@@ -232,33 +244,44 @@ export function ChatView({ chatId }: { chatId: number }) {
       {error && <div className="border-t border-rose-900 bg-rose-950 px-4 py-2 text-sm text-rose-300">{error}</div>}
       {mine && chat.status !== 'closed' && (
         <form onSubmit={send} className="border-t border-zinc-800 px-4 py-3">
+          {suggestion && !busy && !text && (
+            <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 text-xs">
+              <span className="text-zinc-500">Sugestão do {CHAT_PROVIDER_LABELS[chat.provider]}:</span>
+              <button type="button" className="min-w-0 truncate text-left text-zinc-300 hover:underline" onClick={() => setText(suggestion)}>
+                {suggestion}
+              </button>
+              <button type="button" className="btn-ghost shrink-0 px-2 py-0.5 text-xs text-brand-400" onClick={() => void send(undefined, suggestion)}>
+                Enviar sugestão
+              </button>
+            </div>
+          )}
           <div className="mx-auto flex max-w-3xl items-end gap-2">
             <textarea
               className="input max-h-48 min-h-11 flex-1 resize-none"
               rows={2}
-              placeholder={
-                busy
-                  ? 'O agente está trabalhando…'
-                  : `Mensagem para o ${CHAT_PROVIDER_LABELS[chat.provider]} (Enter envia, Shift+Enter quebra linha)`
-              }
+              placeholder={placeholder}
+              disabled={waiting}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                // Tab com a caixa vazia usa a sugestão, como no Claude Code.
+                if (e.key === 'Tab' && !text && suggestion && !busy) {
+                  e.preventDefault()
+                  setText(suggestion)
+                } else if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
                   void send()
                 }
               }}
             />
-            {busy ? (
+            {busy && (
               <button type="button" className="btn-outline" onClick={() => run(() => api.interruptChat(chat.id))}>
                 Parar
               </button>
-            ) : (
-              <button className="btn-primary" disabled={!text.trim()}>
-                Enviar
-              </button>
             )}
+            <button className="btn-primary" disabled={!text.trim() || waiting}>
+              Enviar
+            </button>
           </div>
         </form>
       )}

@@ -21,6 +21,7 @@ function recorder(decision: 'allow' | 'deny' = 'allow') {
       return decision
     },
     onNotice: (text) => log.push(['notice', text]),
+    onSuggestion: (text) => log.push(['suggestion', text]),
     onTurnEnd: (error) => {
       log.push(['turnEnd', error])
       resolveTurn(error)
@@ -69,6 +70,15 @@ describe('adaptador do Codex', () => {
     provider.close()
   })
 
+  it('mensagem enviada durante a vez entra no meio do trabalho (turn/steer)', async () => {
+    const { provider, log, turnEnded } = codexWith('allow')
+    await provider.send('testes')
+    await provider.steer('enquanto isso, siga para a parte 4')
+    await turnEnded
+    provider.close()
+    expect(log).toContainEqual(['delta', 'steer-1', 'Também vou: enquanto isso, siga para a parte 4'])
+  })
+
   it('retoma uma conversa existente', async () => {
     const { provider, log, turnEnded } = codexWith('allow', 'thread-antigo')
     await provider.send('oi')
@@ -112,6 +122,12 @@ describe('tradução das mensagens do Claude', () => {
     handle({ type: 'assistant', error: 'authentication_failed', message: { id: 'm1', content: [{ type: 'text', text: 'Not logged in · Please run /login' }] } })
     handle({ type: 'result', subtype: 'success', is_error: true, result: 'Not logged in · Please run /login' })
     expect(log).toEqual([['turnEnd', 'O Claude não está conectado na sua conta. Abra "Minhas IAs", conecte o Claude Code e envie a mensagem de novo.']])
+  })
+
+  it('repassa a sugestão de próxima mensagem do Claude', () => {
+    const { hooks, log } = recorder()
+    new ClaudeMessageMapper(hooks).handle({ type: 'prompt_suggestion', suggestion: '  rode os testes de novo ' } as never)
+    expect(log).toEqual([['suggestion', 'rode os testes de novo']])
   })
 
   it('avisa quando o Claude está tentando reconectar', () => {
