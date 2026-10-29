@@ -29,13 +29,23 @@ export function useOpenFindings(projectId: number | null, taskId?: number): Find
   )
 }
 
-export function FindingCard({ finding, compact = false, onOpen }: { finding: Finding; compact?: boolean; onOpen?: () => void }) {
+export function FindingCard({
+  finding,
+  compact = false,
+  onOpen
+}: {
+  finding: Finding
+  compact?: boolean
+  onOpen?: () => void
+}) {
   const { tasks, openTask, upsertFindings } = useHarpia()
   const dismiss = async () => upsertFindings([(await api.dismissFinding(finding.id)).finding])
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5 text-sm">
       <div className="mb-1 flex items-center gap-2">
-        <span className={`rounded-full border px-2 py-0.5 text-[11px] ${KIND_STYLE[finding.kind]}`}>{FINDING_LABELS[finding.kind]}</span>
+        <span className={`rounded-full border px-2 py-0.5 text-[11px] ${KIND_STYLE[finding.kind]}`}>
+          {FINDING_LABELS[finding.kind]}
+        </span>
         <span className="text-xs text-zinc-500">{timeAgo(finding.createdAt)}</span>
         <button className="ml-auto text-xs text-zinc-500 hover:text-zinc-300" onClick={() => void dismiss()}>
           Dispensar
@@ -88,15 +98,14 @@ export function TelegramSection({
     <section className={bordered ? 'border-t border-zinc-800 pt-4' : ''}>
       <h3 className="mb-1 text-sm font-semibold">{title}</h3>
       {!telegram.available ? (
-        <p className="text-sm text-zinc-500">O bot do Telegram não está configurado no servidor (HARPIA_TELEGRAM_BOT_TOKEN).</p>
+        <p className="text-sm text-zinc-500">
+          O Telegram ainda não foi configurado. Peça ao administrador para habilitar os avisos.
+        </p>
       ) : telegram.linked ? (
         <div className="flex items-center gap-3 text-sm">
           <span className="text-emerald-400">Vinculado</span>
           <span className="text-zinc-500">{linkedText}</span>
-          <button
-            className="btn-ghost ml-auto px-2 py-1 text-xs"
-            onClick={() => void api.unlinkTelegram().then(load)}
-          >
+          <button className="btn-ghost ml-auto px-2 py-1 text-xs" onClick={() => void api.unlinkTelegram().then(load)}>
             Desvincular
           </button>
         </div>
@@ -196,7 +205,10 @@ export function WatcherDialog({ projectId, onClose }: { projectId: number; onClo
 export function MemoryDialog({ projectId, onClose }: { projectId: number; onClose: () => void }) {
   const users = useHarpia((state) => state.users)
   const [body, setBody] = useState<string | null>(null)
-  const [meta, setMeta] = useState<{ updatedBy: number | null; updatedAt: string | null }>({ updatedBy: null, updatedAt: null })
+  const [meta, setMeta] = useState<{ updatedBy: number | null; updatedAt: string | null }>({
+    updatedBy: null,
+    updatedAt: null
+  })
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -225,8 +237,9 @@ export function MemoryDialog({ projectId, onClose }: { projectId: number; onClos
   return (
     <Dialog title="Memória do projeto" onClose={onClose} wide>
       <p className="mb-3 text-sm text-zinc-400">
-        Tudo o que está aqui entra no início de cada conversa nova com o Claude e o Codex neste projeto, junto com a task.
-        Escreva regras curtas e duradouras: comandos, convenções, armadilhas. O que é de uma task só fica na descrição dela.
+        Tudo o que está aqui entra no início de cada conversa nova com o Claude e o Codex neste projeto, junto com a
+        task. Escreva regras curtas e duradouras: comandos, convenções, armadilhas. O que é de uma task só fica na
+        descrição dela.
       </p>
       {body === null ? (
         <p className="text-sm text-zinc-500">Carregando…</p>
@@ -236,7 +249,9 @@ export function MemoryDialog({ projectId, onClose }: { projectId: number; onClos
             className="input min-h-64 font-mono text-xs"
             value={body}
             maxLength={PROJECT_MEMORY_LIMIT}
-            placeholder={'Ex.:\n- Use pnpm, não npm.\n- Rode pnpm test antes de entregar.\n- Nunca altere migrações antigas do banco.'}
+            placeholder={
+              'Ex.:\n- Use pnpm, não npm.\n- Rode pnpm test antes de entregar.\n- Nunca altere migrações antigas do banco.'
+            }
             onChange={(e) => {
               setBody(e.target.value)
               setSaved(false)
@@ -248,7 +263,8 @@ export function MemoryDialog({ projectId, onClose }: { projectId: number; onClos
             </span>
             {meta.updatedAt && (
               <span>
-                · editada por {meta.updatedBy ? (users[meta.updatedBy]?.name ?? 'alguém') : 'alguém'} {timeAgo(meta.updatedAt)}
+                · editada por {meta.updatedBy ? (users[meta.updatedBy]?.name ?? 'alguém') : 'alguém'}{' '}
+                {timeAgo(meta.updatedAt)}
               </span>
             )}
             <span className="ml-auto">{saved && <span className="text-emerald-400">Salva</span>}</span>

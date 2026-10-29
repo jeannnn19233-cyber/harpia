@@ -46,7 +46,7 @@ export function TerminalView({
       cursorBlink: !readOnly,
       disableStdin: readOnly,
       scrollback: 5000,
-      theme: { background: '#09090b', foreground: '#e4e4e7', cursor: '#fbbf24' }
+      theme: { background: '#0e1411', foreground: '#cbd9cb', cursor: '#a4c395', selectionBackground: '#3a5140' }
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
@@ -92,7 +92,9 @@ export function TerminalView({
     <div className="relative h-full min-h-0 w-full">
       <div ref={container} className="h-full w-full bg-zinc-950 p-2" data-testid="terminal" />
       {connecting && (
-        <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500">Conectando ao terminal…</div>
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500">
+          Conectando ao terminal…
+        </div>
       )}
       {closed && (
         <div className="absolute inset-x-0 bottom-0 bg-zinc-900/95 px-4 py-2 text-sm text-zinc-300">{closed}</div>
