@@ -1,5 +1,6 @@
 import type { Db } from './db/index.ts'
 import type { AgentSystem } from './agents/system.ts'
+import type { SecretBox } from './auth/secrets.ts'
 import type { GitHubClient } from './github/client.ts'
 import type { Notifier } from './notify/notifier.ts'
 import type { GitRunner } from './projects/git.ts'
@@ -36,6 +37,8 @@ export interface AppConfig {
   // ficar sem commits novos antes da revisão.
   reviewPollSeconds: number
   reviewSettleSeconds: number
+  // Vigias do Coolify (deploy e tarefas agendadas): intervalo entre as voltas (0 desliga).
+  monitorPollSeconds: number
   // De quanto em quanto tempo o servidor confere se a sincronização do cofre com o Obsidian está ligada (0 desliga).
   vaultSyncSeconds: number
   // Vigia com IA (fase 4b): tasks parecidas confirmadas, resumos, aprendizados e sugestões no Codex.
@@ -48,7 +51,11 @@ export interface AppContext {
   config: AppConfig
   git: GitRunner
   agents: AgentSystem
+  // GitHub com o token do servidor (HARPIA_GITHUB_TOKEN): ler os PRs, abrir os PRs das tasks.
   github: GitHubClient
+  // GitHub com o token de uma pessoa: o revisor publica, corrige e aprova em nome dela.
+  githubFor: (token: string) => GitHubClient
+  secrets: SecretBox
   notifier: Notifier
   now: () => Date
 }

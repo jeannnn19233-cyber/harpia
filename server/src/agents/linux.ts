@@ -194,6 +194,10 @@ export class LinuxAgentSystem implements AgentSystem {
     return this.userGit(input.user).prepareReviewCheckout(input)
   }
 
+  branchLog(input: { user: User; path: string; from: string }) {
+    return this.userGit(input.user).branchLog(input.path, input.from)
+  }
+
   async prepareWorktree(input: { user: User; project: Project; task: Task; mirrorPath: string }) {
     await this.markSafe(input.mirrorPath)
     return this.userGit(input.user).prepareWorktree(input)

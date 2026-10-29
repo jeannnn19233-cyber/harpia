@@ -251,6 +251,8 @@ export function automationOptions(policy: AutomationPolicy, cwd: string): Partia
     permissionMode: 'dontAsk',
     // Sem as configurações da pessoa: nada de permissões ou ganchos extras numa execução sem humano.
     settingSources: [],
+    // Commits e textos sem a assinatura do Claude (regra da voz de quem publica).
+    settings: { attribution: { commit: '', pr: '' } },
     hooks: { PreToolUse: [{ hooks: [guard] }] },
     canUseTool: async () => ({ behavior: 'deny', message: 'Execução automática: nada além das ferramentas liberadas.' })
   }

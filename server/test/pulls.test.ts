@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Project, Task, User } from '../../shared/types.ts'
 import { UserGit } from '../src/agents/user-git.ts'
-import type { GitHubClient, PullRequestInfo } from '../src/github/client.ts'
+import type { PullRequestInfo } from '../src/github/client.ts'
+import { FakeGitHub } from './fake-github.ts'
 import { systemGit, type GitRunner } from '../src/projects/git.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 import { addMember, setupAdmin, startServer, type TestServer } from './helpers.ts'
@@ -61,26 +62,18 @@ class LocalGitAgents extends FakeAgentSystem {
 }
 
 // GitHub de mentira: guarda os PRs criados e deixa o teste decidir o estado de cada um.
-class FakeGitHub implements GitHubClient {
+class PullsGitHub extends FakeGitHub {
   readonly created: { title: string; head: string; base: string; body: string }[] = []
   readonly states = new Map<number, Omit<PullRequestInfo, 'number' | 'url'>>()
 
-  async createPullRequest(_repo: unknown, input: { title: string; body: string; head: string; base: string }) {
+  override async createPullRequest(_repo?: unknown, input?: { title: string; body: string; head: string; base: string }): Promise<PullRequestInfo> {
+    if (!input) throw new Error('sem dados')
     this.created.push(input)
     const number = 10 + this.created.length
     this.states.set(number, { state: 'open', merged: false })
     return { number, url: `https://github.com/clarumi/loja/pull/${number}`, state: 'open' as const, merged: false }
   }
-  async findOpenPullRequest() {
-    return null
-  }
-  async listOpenPullRequests() {
-    return []
-  }
-  async createReview(): Promise<{ url: string }> {
-    throw new Error('sem revisão neste teste')
-  }
-  async getPullRequest(_repo: unknown, number: number) {
+  override async getPullRequest(_repo: unknown, number: number) {
     return { number, url: `https://github.com/clarumi/loja/pull/${number}`, ...this.states.get(number)! }
   }
 }
@@ -89,7 +82,7 @@ let root: string
 let remote: string
 let server: TestServer
 let agents: LocalGitAgents
-let github: FakeGitHub
+let github: PullsGitHub
 let ana: { cookie: string; userId: number }
 let bruno: { cookie: string; userId: number }
 let taskId: number
@@ -126,7 +119,7 @@ beforeEach(async () => {
     push: (repoPath, _url, branch) => systemGit.push(repoPath, remote, branch)
   }
   agents = new LocalGitAgents(root)
-  github = new FakeGitHub()
+  github = new PullsGitHub()
   server = await startServer({ agents, git, github, terminalsEnabled: true })
   ana = await setupAdmin(server.app)
   bruno = await addMember(server.app, ana.cookie, 'Bruno Lima', 'bruno@exemplo.com')

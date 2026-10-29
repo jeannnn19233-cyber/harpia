@@ -9,6 +9,7 @@ import type { ModelLister, ProviderFactory } from '../src/chat/providers/types.t
 import type { GitHubClient } from '../src/github/client.ts'
 import type { TelegramClient } from '../src/notify/telegram.ts'
 import type { GitRunner } from '../src/projects/git.ts'
+import type { CoolifyClient, HttpProbe } from '../src/monitors/coolify.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 
 export interface TestServer {
@@ -20,22 +21,43 @@ export interface TestServer {
 }
 
 // Por padrão, os testes nunca falam com o GitHub de verdade.
+const notConfigured = async (): Promise<never> => {
+  throw new Error('Este teste não configurou o GitHub.')
+}
 export const offlineGitHub: GitHubClient = {
+  getViewer: notConfigured,
   async listOpenPullRequests() {
     return []
   },
-  async createReview() {
-    throw new Error('Este teste não configurou o GitHub.')
+  getPull: notConfigured,
+  async listReviews() {
+    return []
   },
-  async createPullRequest() {
-    throw new Error('Este teste não configurou o GitHub.')
+  async listReviewComments() {
+    return []
   },
+  async listPullFiles() {
+    return []
+  },
+  async listCheckRuns() {
+    return []
+  },
+  getBranchSha: notConfigured,
+  getCommit: notConfigured,
+  async listIssueComments() {
+    return []
+  },
+  createReview: notConfigured,
+  updateReviewBody: notConfigured,
+  updatePullBody: notConfigured,
+  updateIssueComment: notConfigured,
+  requestReviewers: notConfigured,
+  setDraft: notConfigured,
+  createPullRequest: notConfigured,
   async findOpenPullRequest() {
     return null
   },
-  async getPullRequest() {
-    throw new Error('Este teste não configurou o GitHub.')
-  }
+  getPullRequest: notConfigured
 }
 
 export const fakeGit: GitRunner = {
@@ -48,6 +70,7 @@ export const fakeGit: GitRunner = {
     return true
   },
   async importBundle() {},
+  async importBundleAs() {},
   async push() {},
   async fetchPull() {
     return 'abc123'
@@ -71,6 +94,7 @@ export async function startServer(
     chatProviders?: ProviderFactory
     chatModels?: ModelLister
     github?: GitHubClient
+    githubFor?: (token: string) => GitHubClient
     telegram?: TelegramClient
     now?: () => Date
     dataDir?: string
@@ -79,6 +103,9 @@ export async function startServer(
     terminalsEnabled?: boolean
     maxSessionsPerUser?: number
     routineLimits?: { inactivityMs?: number; maxMs?: number }
+    reviewer?: { retrySeconds?: number }
+    coolify?: CoolifyClient | null
+    probe?: HttpProbe
     aiInsights?: boolean
   } = {}
 ): Promise<TestServer> {
@@ -99,6 +126,7 @@ export async function startServer(
       maxConcurrentRuns: 3,
       reviewPollSeconds: 0,
       reviewSettleSeconds: 0,
+      monitorPollSeconds: 0,
       vaultSyncSeconds: 0,
       aiInsights: options.aiInsights ?? false,
       staleHours: 48,
@@ -108,10 +136,14 @@ export async function startServer(
     pollTelegram: false,
     now: options.now,
     github: options.github ?? offlineGitHub,
+    githubFor: options.githubFor,
     git: options.git ?? fakeGit,
     agents: options.agents ?? new FakeAgentSystem(),
     chatModels: options.chatModels,
     routineLimits: options.routineLimits,
+    reviewer: options.reviewer,
+    coolify: options.coolify,
+    probe: options.probe ?? (async () => ({ status: 200, body: '' })),
     chatProviders: options.chatProviders ?? (() => {
       throw new Error('Este teste não configurou provedores de chat.')
     })

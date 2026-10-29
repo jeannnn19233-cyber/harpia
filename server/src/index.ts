@@ -2,6 +2,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildApp } from './app.ts'
+import { createCoolifyClient } from './monitors/coolify.ts'
 import { createTelegramClient } from './notify/telegram.ts'
 
 // Arquivos criados pelo servidor (espelhos dos repositórios, configurações) nunca ficam
@@ -32,11 +33,17 @@ const { app } = await buildApp({
     maxConcurrentRuns: Number(process.env.HARPIA_MAX_CONCURRENT_RUNS ?? 3),
     reviewPollSeconds: Number(process.env.HARPIA_REVIEW_POLL_SECONDS ?? 180),
     reviewSettleSeconds: Number(process.env.HARPIA_REVIEW_SETTLE_SECONDS ?? 180),
+    monitorPollSeconds: Number(process.env.HARPIA_MONITOR_POLL_SECONDS ?? 300),
     vaultSyncSeconds: 120,
     aiInsights: process.env.HARPIA_AI_INSIGHTS !== 'off',
     staleHours: Number(process.env.HARPIA_STALE_HOURS ?? 48),
     reviewHours: Number(process.env.HARPIA_REVIEW_HOURS ?? 24)
   },
+  // Token do Coolify só de leitura: os vigias nunca reiniciam nem fazem deploy.
+  coolify:
+    process.env.HARPIA_COOLIFY_URL && process.env.HARPIA_COOLIFY_TOKEN
+      ? createCoolifyClient({ url: process.env.HARPIA_COOLIFY_URL, token: process.env.HARPIA_COOLIFY_TOKEN })
+      : null,
   telegram: process.env.HARPIA_TELEGRAM_BOT_TOKEN ? createTelegramClient(process.env.HARPIA_TELEGRAM_BOT_TOKEN) : null,
   logger: { level: process.env.HARPIA_LOG_LEVEL ?? 'info' }
 })

@@ -30,7 +30,7 @@ Em **Environment Variables**:
 | `HARPIA_SETUP_CODE` | um código longo e aleatório | Só quem tem o código cria a primeira conta (o administrador). **Defina antes do primeiro deploy.** |
 | `HARPIA_COOKIE_SECURE` | `true` | O Coolify serve o Harpia por HTTPS. |
 | `HARPIA_ALLOWED_ORIGINS` | `https://harpia.seudominio.com.br` | O mesmo domínio do passo 1, sem barra no fim. |
-| `HARPIA_GITHUB_TOKEN` | token do GitHub (marque como secreto) | Para clonar repositórios privados. |
+| `HARPIA_GITHUB_TOKEN` | token do GitHub (marque como secreto) | Para clonar repositórios privados, abrir os PRs das tasks e ler os PRs. As revisões usam o token de cada pessoa (veja abaixo). |
 | `HARPIA_TERMINALS` | `on` | Liga os terminais com agentes de IA (fase 3). **Só ligue depois do checklist da seção "Ligar os agentes de IA".** |
 | `HARPIA_MAX_SESSIONS_PER_USER` | `5` (padrão) | Quantos agentes cada pessoa pode ter abertos ao mesmo tempo. |
 | `HARPIA_TELEGRAM_BOT_TOKEN` | token do bot (marque como secreto) | Avisos no Telegram. Crie o bot com o [@BotFather](https://t.me/BotFather). |
@@ -39,15 +39,30 @@ Em **Environment Variables**:
 | `HARPIA_REVIEW_POLL_SECONDS` | `180` (padrão) | De quanto em quanto tempo o Harpia olha os PRs abertos para a revisão automática. |
 | `HARPIA_REVIEW_SETTLE_SECONDS` | `180` (padrão) | Quanto tempo um PR precisa ficar sem commits novos antes de ser revisado. |
 | `HARPIA_MAX_CONCURRENT_RUNS` | `3` (padrão) | Quantas rotinas podem rodar ao mesmo tempo no servidor. |
+| `HARPIA_COOLIFY_URL` | `https://coolify.seudominio.com.br` | Vigias do deploy: endereço do painel do Coolify. |
+| `HARPIA_COOLIFY_TOKEN` | token **só de leitura** do Coolify (marque como secreto) | Vigias do deploy. Veja "Vigias do deploy" abaixo. |
+| `HARPIA_MONITOR_POLL_SECONDS` | `300` (padrão) | De quanto em quanto tempo os vigias olham o Coolify. |
 | `HARPIA_AI_INSIGHTS` | ligado (padrão) | `off` desliga o vigia com IA: tasks parecidas confirmadas, resumos, aprendizados e sugestões no Codex. |
 
 Para gerar o código de configuração: `openssl rand -base64 24`.
 
-O token do GitHub pode ser um *fine-grained token* com acesso só aos repositórios da equipe e
-as permissões **Contents: Read and write** (para enviar as branches) e **Pull requests: Read and
-write** (para abrir os PRs, saber quando tiveram merge e publicar as revisões automáticas).
-As revisões aparecem no GitHub em nome da conta dona do token. Para elas aparecerem como um bot,
-crie uma conta de máquina (ex.: `harpia-bot`) com acesso aos repositórios e gere o token nela.
+O token do servidor pode ser um *fine-grained token* com acesso só aos repositórios da equipe e
+as permissões **Contents: Read and write** (para enviar as branches das tasks) e **Pull
+requests: Read and write** (para abrir os PRs e saber quando tiveram merge).
+
+### Token do GitHub de cada pessoa (revisor de PRs)
+
+O revisor publica, corrige e aprova **em nome de quem revisa**, então cada pessoa conecta o
+próprio token em "Minhas IAs" (nunca pelo Coolify). Recomendado: *fine-grained token* da própria
+conta, só para os repositórios da equipe, com:
+
+- **Contents: Read and write** — enviar as correções para a branch do PR;
+- **Pull requests: Read and write** — publicar revisões, marcar revisor, rascunho, editar o corpo;
+- **Issues: Read and write** — limpar assinatura de ferramenta nos comentários do PR;
+- **Checks: Read** — ver o CI.
+
+O token fica cifrado no volume (`/data/server/secret.key` guarda a chave; ela entra no backup
+junto com o banco). Se a chave se perder, cada pessoa conecta o token de novo.
 
 ## 4. Limites de recursos
 
@@ -78,6 +93,9 @@ node --disable-warning=ExperimentalWarning -e "require('node:sqlite'); new (requ
 ```
 
 Depois copie `/data/backup.db` para fora do servidor (ou ative os backups de volume do Coolify).
+
+Copie também `/data/server/secret.key`: é a chave que abre os tokens do GitHub que cada pessoa
+conectou. Sem ela, o banco restaurado funciona, mas cada pessoa precisa conectar o token de novo.
 
 ## Ligar os agentes de IA (fase 3)
 
@@ -116,6 +134,22 @@ Os agentes rodam dentro do container. Um novo deploy (ou reinício) interrompe o
 estavam trabalhando: a conversa avisa e, na próxima mensagem, continua de onde parou. As
 conversas, cópias de trabalho, branches e logins continuam no volume.
 
+### Vigias do deploy
+
+Os vigias leem a API do Coolify, nunca o banco dele, e nunca usam SSH. Para ligar:
+
+1. No Coolify, **Settings → Advanced**: ligue o acesso à API.
+2. **Keys & Tokens → API tokens**: crie um token com a permissão **read** apenas (sem
+   `read:sensitive`, `write`, `deploy` ou `root`). Assim o Harpia não consegue reiniciar, fazer
+   deploy, nem ler variáveis de ambiente das aplicações.
+3. No Harpia (Environment Variables): `HARPIA_COOLIFY_URL` com o endereço do painel e
+   `HARPIA_COOLIFY_TOKEN` com o token (marque como secreto). Faça o deploy.
+4. No quadro do projeto, botão **Deploy**: escolha a aplicação, as URLs de saúde e quem recebe
+   os avisos, e ligue.
+
+Sem `read:sensitive` o Coolify pode esconder o log dos deploys; nesse caso o aviso de deploy que
+falhou diz "veja no Coolify" em vez de trazer as linhas de erro.
+
 ### Rotinas, revisões e o agente do Telegram (fase 6)
 
 Usam o mesmo login do Claude Code de cada pessoa (em "Minhas IAs") e precisam de
@@ -129,4 +163,10 @@ Sync (`obsidian-headless`) já vem na imagem; cada pessoa conecta o dela em "Meu
 - Os terminais ficam desligados até `HARPIA_TERMINALS=on`. Veja o checklist acima antes de ligar.
 - Rotinas, revisões e o agente do Telegram rodam sem ninguém aprovando, então nunca têm
   terminal: só as ferramentas de arquivo (presas a uma pasta, inclusive contra links simbólicos)
-  e, quando liberada, a web. A revisão de PR só lê a cópia do PR e nunca aprova no GitHub.
+  e, quando liberada, a web.
+- O revisor de PRs é a exceção: precisa do terminal para rodar tipos, lint e testes, como no
+  Hermes. Roda como o usuário Linux da pessoa, numa cópia do PR sem nenhuma credencial do GitHub;
+  `git push`, `gh`, chamadas à API do GitHub, rebase e leitura de `.env` e das pastas de
+  credenciais são barrados. Quem envia os commits e publica é o servidor, depois do portão.
+- O container do Harpia nunca recebe o `docker.sock` do servidor. Por isso as suítes de
+  integração que sobem Docker não rodam na revisão.

@@ -6,7 +6,9 @@ import type {
   ChatItem,
   Finding,
   Learning,
+  MonitorEvent,
   PrReview,
+  ProjectMonitor,
   Project,
   PullRequest,
   RealtimeMessage,
@@ -41,6 +43,9 @@ interface HarpiaState {
   findings: Record<number, Finding>
   routines: Record<number, Routine>
   reviews: Record<number, PrReview>
+  // Vigias do Coolify por projeto e os últimos avisos.
+  monitors: Record<number, ProjectMonitor>
+  monitorEvents: Record<number, MonitorEvent[]>
   // Fase 4b: resumo de cada task concluída e aprendizados sugeridos.
   summaries: Record<number, TaskSummary>
   learnings: Record<number, Learning>
@@ -65,6 +70,7 @@ interface HarpiaState {
   upsertPulls(pulls: PullRequest[]): void
   upsertFindings(findings: Finding[]): void
   upsertReviews(reviews: PrReview[]): void
+  setMonitor(monitor: ProjectMonitor, events?: MonitorEvent[]): void
   setSummary(summary: TaskSummary): void
   upsertLearnings(learnings: Learning[]): void
   setRoutines(routines: Routine[]): void
@@ -119,6 +125,8 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   findings: {},
   routines: {},
   reviews: {},
+  monitors: {},
+  monitorEvents: {},
   summaries: {},
   learnings: {},
   routineRuns: {},
@@ -169,6 +177,11 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   setSummary: (summary) => set((state) => ({ summaries: { ...state.summaries, [summary.taskId]: summary } })),
   upsertLearnings: (learnings) =>
     set((state) => ({ learnings: { ...state.learnings, ...Object.fromEntries(learnings.map((learning) => [learning.id, learning])) } })),
+  setMonitor: (monitor, events) =>
+    set((state) => ({
+      monitors: { ...state.monitors, [monitor.projectId]: monitor },
+      monitorEvents: events ? { ...state.monitorEvents, [monitor.projectId]: events } : state.monitorEvents
+    })),
   upsertReviews: (reviews) =>
     set((state) => ({ reviews: { ...state.reviews, ...Object.fromEntries(reviews.map((review) => [review.id, review])) } })),
   setRoutines: (routines) => set({ routines: Object.fromEntries(routines.map((routine) => [routine.id, routine])) }),
@@ -243,6 +256,16 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
         const index = list.findIndex((item) => item.id === message.item.id)
         const next = index === -1 ? [...list, message.item] : list.map((item, i) => (i === index ? message.item : item))
         set({ chatItems: { ...state.chatItems, [message.item.chatId]: next } })
+        break
+      }
+      case 'monitor':
+        state.setMonitor(message.monitor)
+        break
+      case 'monitor_event': {
+        const list = state.monitorEvents[message.event.projectId] ?? []
+        if (!list.some((item) => item.id === message.event.id)) {
+          set({ monitorEvents: { ...state.monitorEvents, [message.event.projectId]: [message.event, ...list].slice(0, 30) } })
+        }
         break
       }
       case 'task_event': {

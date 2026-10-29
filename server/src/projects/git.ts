@@ -12,8 +12,11 @@ export interface GitRunner {
   branchExists(repoPath: string, branch: string): Promise<boolean>
   // Traz para o espelho a branch empacotada (git bundle) na cópia de uma pessoa.
   importBundle(repoPath: string, bundlePath: string, branch: string): Promise<void>
-  // Envia a branch do espelho para o repositório remoto (GitHub).
-  push(repoPath: string, remoteUrl: string, branch: string): Promise<void>
+  // Envia a branch do espelho para o repositório remoto (GitHub). Nunca com --force: se o remoto
+  // andou, o push é recusado. "token" troca o token do servidor pelo de uma pessoa (o revisor).
+  push(repoPath: string, remoteUrl: string, branch: string, token?: string): Promise<void>
+  // Traz para o espelho, com outro nome, uma branch empacotada (correções do revisor).
+  importBundleAs(repoPath: string, bundlePath: string, from: string, to: string): Promise<void>
   // Traz o commit de um PR (refs/pull/N/head) para o espelho, em refs/harpia/pull/N. Devolve o SHA.
   fetchPull(repoPath: string, number: number): Promise<string>
   // Diff do PR: da base comum com a branch principal até o commit do PR.
@@ -40,7 +43,7 @@ const TOKEN_HELPER = [
 ]
 
 function run(args: string[], cwd?: string, extraEnv: Record<string, string> = {}): Promise<string> {
-  const auth = process.env.HARPIA_GITHUB_TOKEN ? TOKEN_HELPER : []
+  const auth = process.env.HARPIA_GITHUB_TOKEN || extraEnv.HARPIA_GITHUB_TOKEN ? TOKEN_HELPER : []
   return new Promise((resolve, reject) => {
     execFile(
       'git',
@@ -73,8 +76,11 @@ export const systemGit: GitRunner = {
   async importBundle(repoPath, bundlePath, branch) {
     await run(['fetch', '--quiet', bundlePath, `+refs/heads/${branch}:refs/heads/${branch}`], repoPath)
   },
-  async push(repoPath, remoteUrl, branch) {
-    await run(['push', '--quiet', remoteUrl, `refs/heads/${branch}:refs/heads/${branch}`], repoPath)
+  async push(repoPath, remoteUrl, branch, token) {
+    await run(['push', '--quiet', remoteUrl, `refs/heads/${branch}:refs/heads/${branch}`], repoPath, token ? { HARPIA_GITHUB_TOKEN: token } : {})
+  },
+  async importBundleAs(repoPath, bundlePath, from, to) {
+    await run(['fetch', '--quiet', bundlePath, `+refs/heads/${from}:refs/heads/${to}`], repoPath)
   },
   async fetchPull(repoPath, number) {
     await run(['fetch', '--quiet', 'origin', `+refs/pull/${number}/head:refs/harpia/pull/${number}`], repoPath)

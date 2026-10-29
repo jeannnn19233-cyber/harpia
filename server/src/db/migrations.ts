@@ -348,6 +348,123 @@ const MIGRATIONS: string[] = [
   );
 
   ALTER TABLE users ADD COLUMN codex_suggestions INTEGER NOT NULL DEFAULT 1;
+  `,
+  // Revisor v2 (como o revisor do Hermes): token do GitHub de cada sócio, filas por PR,
+  // revisões publicadas pelo Harpia, memória de achados por PR e lições do projeto.
+  `
+  CREATE TABLE github_accounts (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    login TEXT NOT NULL,
+    token TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  ALTER TABLE users ADD COLUMN review_mode TEXT NOT NULL DEFAULT 'full';
+  ALTER TABLE users ADD COLUMN preferred_reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE projects ADD COLUMN default_reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE projects ADD COLUMN review_since TEXT;
+  ALTER TABLE projects ADD COLUMN review_rules TEXT NOT NULL DEFAULT '';
+  UPDATE projects SET review_since = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE pr_review = 1;
+
+  CREATE TABLE pr_jobs (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    queue TEXT NOT NULL CHECK (queue IN ('conflito', 'corrigir', 'adiantar', 'revisar', 'retestar', 'assinatura')),
+    trigger_key TEXT NOT NULL,
+    head_sha TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    author_login TEXT NOT NULL,
+    reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL CHECK (status IN ('waiting', 'running', 'posted', 'failed', 'skipped')),
+    verdict TEXT CHECK (verdict IN ('approve', 'request_changes', 'comment')),
+    summary TEXT,
+    counts TEXT,
+    review_url TEXT,
+    chat_id INTEGER REFERENCES chats(id) ON DELETE SET NULL,
+    error TEXT,
+    trigger TEXT NOT NULL CHECK (trigger IN ('auto', 'manual')),
+    line TEXT,
+    pushed_sha TEXT,
+    question TEXT,
+    answer TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    priority INTEGER NOT NULL DEFAULT 5,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (project_id, number, queue, trigger_key)
+  );
+  INSERT INTO pr_jobs (id, project_id, number, queue, trigger_key, head_sha, title, url, author_login, reviewer_id, status,
+                       verdict, summary, counts, review_url, chat_id, error, trigger, created_at, updated_at)
+    SELECT id, project_id, number, 'revisar', head_sha, head_sha, title, url, author_login, reviewer_id, status,
+           verdict, summary, counts, review_url, chat_id, error, trigger, created_at, updated_at FROM pr_reviews;
+  DROP TABLE pr_reviews;
+  CREATE INDEX idx_pr_jobs_project ON pr_jobs(project_id, id);
+  CREATE INDEX idx_pr_jobs_waiting ON pr_jobs(status, reviewer_id);
+
+  -- Revisões que o próprio Harpia publicou: as outras são de pessoas (fila "corrigir").
+  CREATE TABLE pr_published (
+    github_review_id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    job_id INTEGER REFERENCES pr_jobs(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+  );
+
+  -- Memória por achado de cada PR (mesmo formato do revisor_memoria.py do Hermes).
+  CREATE TABLE pr_memories (
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, number)
+  );
+
+  -- Estado por PR: revisor já pedido no GitHub uma vez, e rascunho posto pelo próprio revisor.
+  CREATE TABLE pr_flags (
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    reviewer_requested INTEGER NOT NULL DEFAULT 0,
+    drafted_by_reviewer INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, number)
+  );
+
+  -- Lições que valem para outras PRs (append-only, como o licoes.md do Hermes).
+  CREATE TABLE review_lessons (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    number INTEGER,
+    author_login TEXT,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  `,
+  // 13: vigias do deploy e das tarefas agendadas do Coolify, por projeto (port dos vigias do Hermes).
+  `
+  CREATE TABLE project_monitors (
+    project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    coolify_app_uuid TEXT NOT NULL DEFAULT '',
+    health_checks TEXT NOT NULL DEFAULT '[]',
+    timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+    notify_user_ids TEXT NOT NULL DEFAULT '[]',
+    -- Estado de cada vigia entre as voltas (como os arquivos de estado dos scripts do Hermes).
+    deploy_state TEXT,
+    watch_state TEXT,
+    watching_since TEXT,
+    panorama TEXT,
+    checked_at TEXT,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE monitor_events (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX monitor_events_project ON monitor_events(project_id, id);
   `
 ]
 

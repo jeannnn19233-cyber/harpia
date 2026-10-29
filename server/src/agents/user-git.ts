@@ -4,6 +4,11 @@ import type { ChangedFile, Project, Task, User } from '../../../shared/types.ts'
 import { slugify } from '../projects/store.ts'
 import { parseChangedFiles } from './changes.ts'
 
+// Branch local da cópia de revisão de um PR.
+export function reviewBranch(number: number): string {
+  return `harpia-revisao/pr-${number}`
+}
+
 // Roda um comando como a pessoa (na VPS, via runuser; nos testes, direto).
 export type RunAsUser = (args: string[]) => Promise<string>
 
@@ -34,20 +39,40 @@ export class UserGit {
     return clone
   }
 
-  // Cópia do commit de um PR, só para leitura do revisor. Recriada a cada revisão.
+  // Cópia do commit de um PR para o revisor, na branch local "harpia-revisao/pr-N" (onde ele pode
+  // commitar as correções). Recriada a cada execução, sempre limpa. node_modules fica guardado
+  // ao lado e volta para a cópia nova, para não instalar tudo de novo a cada revisão.
   async prepareReviewCheckout(input: { project: Project; mirrorPath: string; number: number; sha: string }): Promise<string> {
     const clone = await this.ensureClone(input.project, input.mirrorPath)
-    const ref = `refs/harpia/pull/${input.number}`
-    await this.git(clone, 'fetch', '--quiet', 'origin', `+${ref}:${ref}`)
+    // Todos os PRs abertos que o espelho já buscou, para comparar com os irmãos (regra 10).
+    await this.git(clone, 'fetch', '--quiet', 'origin', '+refs/harpia/pull/*:refs/harpia/pull/*')
     const path = join(this.home, 'revisoes', input.project.slug, `pr-${input.number}`)
+    const cache = join(this.home, 'revisoes', input.project.slug, '.node_modules')
     if (existsSync(path)) {
+      if (existsSync(join(path, 'node_modules')) && !existsSync(cache)) await this.run(['mv', join(path, 'node_modules'), cache])
       await this.git(clone, 'worktree', 'remove', '--force', path).catch(() => undefined)
       await this.run(['rm', '-rf', path])
     }
     await this.git(clone, 'worktree', 'prune')
     await this.run(['mkdir', '-p', dirname(path)])
-    await this.git(clone, 'worktree', 'add', '--quiet', '--detach', path, input.sha)
+    await this.git(clone, 'worktree', 'add', '--quiet', '-B', reviewBranch(input.number), path, input.sha)
+    if (existsSync(cache)) await this.run(['mv', cache, join(path, 'node_modules')])
     return path
+  }
+
+  // HEAD da cópia e os commits feitos depois de "from" (o que o revisor vai enviar).
+  async branchLog(path: string, from: string): Promise<{ head: string; commits: { sha: string; message: string; files: string[] }[] }> {
+    const head = await this.git(path, 'rev-parse', 'HEAD')
+    const shas = (await this.git(path, 'rev-list', '--reverse', `${from}..HEAD`)).split('\n').filter(Boolean)
+    const commits = []
+    for (const sha of shas) {
+      commits.push({
+        sha,
+        message: await this.git(path, 'log', '-1', '--format=%B', sha),
+        files: (await this.git(path, 'show', '--name-only', '--format=', sha)).split('\n').filter(Boolean)
+      })
+    }
+    return { head, commits }
   }
 
   async prepareWorktree(input: { user: User; project: Project; task: Task; mirrorPath: string }) {

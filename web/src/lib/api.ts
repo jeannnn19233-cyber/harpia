@@ -9,7 +9,13 @@ import type {
   ChatModel,
   Learning,
   TaskSummary,
+  MonitorEvent,
+  PrMemory,
+  ProjectMonitor,
+  HealthCheck,
   PrReview,
+  ProjectReviewSettings,
+  ReviewMode,
   Routine,
   RoutineRun,
   ChatProvider,
@@ -128,13 +134,31 @@ export const api = {
   projectLearnings: (projectId: number) => request<{ learnings: Learning[] }>('GET', `/api/projects/${projectId}/learnings`),
   applyLearning: (id: number, text?: string) => request<{ learning: Learning }>('POST', `/api/learnings/${id}/apply`, text ? { text } : {}),
   dismissLearning: (id: number) => request<{ learning: Learning }>('POST', `/api/learnings/${id}/dismiss`, {}),
-  updateMe: (input: { githubLogin?: string | null; codexSuggestions?: boolean }) => request<{ user: User }>('PATCH', '/api/me', input),
-  reviews: (projectId: number) => request<{ reviews: PrReview[]; github: boolean }>('GET', `/api/projects/${projectId}/reviews`),
+  updateMe: (input: { githubLogin?: string | null; codexSuggestions?: boolean; reviewMode?: ReviewMode; preferredReviewerId?: number | null }) =>
+    request<{ user: User }>('PATCH', '/api/me', input),
+  connectGitHub: (token: string) => request<{ user: User }>('PUT', '/api/me/github', { token }),
+  disconnectGitHub: () => request<{ user: User }>('DELETE', '/api/me/github'),
+  reviews: (projectId: number) =>
+    request<{ reviews: PrReview[]; github: boolean; settings: ProjectReviewSettings; lessons: string[] }>('GET', `/api/projects/${projectId}/reviews`),
   setProjectReview: (projectId: number, enabled: boolean) =>
     request<{ project: Project }>('PUT', `/api/projects/${projectId}/review`, { enabled }),
+  updateReviewSettings: (projectId: number, input: { defaultReviewerId?: number | null; rules?: string }) =>
+    request<{ settings: ProjectReviewSettings }>('PATCH', `/api/projects/${projectId}/review-settings`, input),
   requestReview: (projectId: number, number: number) =>
     request<{ review: PrReview }>('POST', `/api/projects/${projectId}/reviews`, { number }),
   checkReviews: (projectId: number) => request<{ reviews: PrReview[] }>('POST', `/api/projects/${projectId}/reviews/check`, {}),
+  answerReview: (id: number, text: string) => request<{ review: PrReview }>('POST', `/api/reviews/${id}/answer`, { text }),
+  retryReview: (id: number) => request<{ review: PrReview }>('POST', `/api/reviews/${id}/retry`, {}),
+  pullMemory: (projectId: number, number: number) => request<{ memory: PrMemory }>('GET', `/api/projects/${projectId}/pulls/${number}/memory`),
+  monitor: (projectId: number) =>
+    request<{ monitor: ProjectMonitor; events: MonitorEvent[]; coolifyConfigured: boolean }>('GET', `/api/projects/${projectId}/monitor`),
+  monitorApplications: () => request<{ applications: { uuid: string; name: string }[] }>('GET', '/api/monitor/applications'),
+  saveMonitor: (
+    projectId: number,
+    input: { enabled: boolean; coolifyAppUuid: string; healthChecks: HealthCheck[]; timezone: string; notifyUserIds: number[] }
+  ) => request<{ monitor: ProjectMonitor }>('PUT', `/api/projects/${projectId}/monitor`, input),
+  checkMonitor: (projectId: number) =>
+    request<{ monitor: ProjectMonitor; events: MonitorEvent[] }>('POST', `/api/projects/${projectId}/monitor/check`, {}),
   vault: () => request<VaultStatus>('GET', '/api/me/vault'),
   routines: () => request<{ routines: Routine[] }>('GET', '/api/routines'),
   createRoutine: (input: RoutineInput) => request<{ routine: Routine }>('POST', '/api/routines', input),

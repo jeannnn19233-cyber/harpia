@@ -1,7 +1,8 @@
 import { timingSafeEqual } from 'node:crypto'
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import type { User } from '../../../shared/types.ts'
+import { REVIEW_MODES, type User } from '../../../shared/types.ts'
+import { deleteGitHubAccount, saveGitHubAccount } from './github-accounts.ts'
 import type { AppContext } from '../context.ts'
 import { transaction } from '../db/index.ts'
 import { HttpError, parse } from '../http/errors.ts'
@@ -16,6 +17,7 @@ import {
   getUserWithPassword,
   insertUser,
   listUsers,
+  getUser,
   setCodexSuggestions,
   setGitHubLogin
 } from './users.ts'
@@ -44,8 +46,12 @@ const profileSchema = z.object({
     .pipe(z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/, 'Usuário do GitHub inválido.'))
     .nullable()
     .optional(),
-  codexSuggestions: z.boolean().optional()
+  codexSuggestions: z.boolean().optional(),
+  reviewMode: z.enum(REVIEW_MODES).optional(),
+  preferredReviewerId: z.number().int().positive().nullable().optional()
 })
+
+const githubTokenSchema = z.object({ token: z.string().trim().min(20, 'Cole o token completo.').max(300) })
 
 const inviteSchema = z.object({
   role: z.enum(['admin', 'member']).default('member')
@@ -134,7 +140,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
   // Cada pessoa informa o próprio usuário do GitHub: os PRs dela são revisados no Claude dela.
   app.patch('/api/me', async (request) => {
     const user = requireUser(request)
-    const { githubLogin, codexSuggestions } = parse(profileSchema, request.body)
+    const { githubLogin, codexSuggestions, reviewMode, preferredReviewerId } = parse(profileSchema, request.body)
     let updated = user
     if (githubLogin !== undefined) {
       const owner = githubLogin ? findUserByGitHubLogin(ctx.db, githubLogin) : null
@@ -142,6 +148,42 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       updated = setGitHubLogin(ctx.db, user.id, githubLogin) as User
     }
     if (codexSuggestions !== undefined) updated = setCodexSuggestions(ctx.db, user.id, codexSuggestions) as User
+    if (reviewMode !== undefined) {
+      ctx.db.prepare('UPDATE users SET review_mode = ? WHERE id = ?').run(reviewMode, user.id)
+      updated = getUser(ctx.db, user.id) as User
+    }
+    if (preferredReviewerId !== undefined) {
+      if (preferredReviewerId === user.id) throw new HttpError(400, 'Escolha outra pessoa para revisar os seus PRs.')
+      if (preferredReviewerId !== null && !getUser(ctx.db, preferredReviewerId)) throw new HttpError(404, 'Pessoa não encontrada.')
+      ctx.db.prepare('UPDATE users SET preferred_reviewer_id = ? WHERE id = ?').run(preferredReviewerId, user.id)
+      updated = getUser(ctx.db, user.id) as User
+    }
+    ctx.hub.broadcast({ type: 'user', user: updated })
+    return { user: updated }
+  })
+
+  // Cada pessoa conecta o próprio GitHub com um token: o revisor publica, corrige e aprova em nome dela.
+  app.put('/api/me/github', async (request) => {
+    const user = requireUser(request)
+    const { token } = parse(githubTokenSchema, request.body)
+    let login: string
+    try {
+      login = (await ctx.githubFor(token).getViewer()).login
+    } catch {
+      throw new HttpError(400, 'O GitHub não aceitou esse token. Confira se ele foi copiado inteiro e se não expirou.')
+    }
+    const owner = findUserByGitHubLogin(ctx.db, login)
+    if (owner && owner.id !== user.id) throw new HttpError(409, `Esse token é do usuário ${login}, que já está ligado a ${owner.name}.`)
+    saveGitHubAccount(ctx.db, ctx.secrets, { userId: user.id, login, token, now: ctx.now() })
+    const updated = getUser(ctx.db, user.id) as User
+    ctx.hub.broadcast({ type: 'user', user: updated })
+    return { user: updated }
+  })
+
+  app.delete('/api/me/github', async (request) => {
+    const user = requireUser(request)
+    deleteGitHubAccount(ctx.db, user.id)
+    const updated = getUser(ctx.db, user.id) as User
     ctx.hub.broadcast({ type: 'user', user: updated })
     return { user: updated }
   })
