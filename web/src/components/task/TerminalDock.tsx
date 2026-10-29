@@ -27,7 +27,7 @@ function save(key: string, value: string): void {
 export function TerminalDock({ taskId, enabled }: { taskId: number; enabled: boolean }) {
   const { me, users, sessions, upsertSessions } = useHarpia()
   const [open, setOpen] = useState(() => readNumber(OPEN_KEY, 1) === 1)
-  const [height, setHeight] = useState(() => readNumber(HEIGHT_KEY, 260))
+  const [height, setHeight] = useState(() => readNumber(HEIGHT_KEY, 190))
   const [selected, setSelected] = useState<number | null>(null)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,7 +90,10 @@ export function TerminalDock({ taskId, enabled }: { taskId: number; enabled: boo
   const current = terminals.find((session) => session.id === selected) ?? terminals[0]
 
   return (
-    <section className="flex shrink-0 flex-col border-t border-zinc-800 bg-zinc-950" style={open ? { height } : undefined}>
+    <section
+      className="studio-terminal flex shrink-0 flex-col border-t border-zinc-800 bg-zinc-950"
+      style={open ? { height } : undefined}
+    >
       {open && (
         <div
           className="h-1 shrink-0 cursor-row-resize bg-zinc-900 hover:bg-brand-500/50"
@@ -99,6 +102,26 @@ export function TerminalDock({ taskId, enabled }: { taskId: number; enabled: boo
             document.body.style.userSelect = 'none'
           }}
           title="Arraste para mudar a altura"
+          role="separator"
+          aria-label="Altura do terminal"
+          aria-orientation="horizontal"
+          aria-valuemin={120}
+          aria-valuemax={Math.round(window.innerHeight * 0.75)}
+          aria-valuenow={height}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+              event.preventDefault()
+              setHeight((current) => {
+                const next = Math.min(
+                  window.innerHeight * 0.75,
+                  Math.max(120, current + (event.key === 'ArrowUp' ? 20 : -20))
+                )
+                save(HEIGHT_KEY, String(next))
+                return next
+              })
+            }
+          }}
         />
       )}
       <header className="flex items-center gap-1 px-2 py-1">
@@ -114,11 +137,17 @@ export function TerminalDock({ taskId, enabled }: { taskId: number; enabled: boo
                 session.id === current?.id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900'
               }`}
             >
-              {session.userId === me?.id ? 'Meu terminal' : `${users[session.userId]?.name.split(' ')[0] ?? '?'} (só leitura)`}
+              {session.userId === me?.id
+                ? 'Meu terminal'
+                : `${users[session.userId]?.name.split(' ')[0] ?? '?'} (só leitura)`}
             </button>
           ))}
         {open && enabled && !mine && (
-          <button className="btn-ghost px-2 py-1 text-xs text-brand-400" disabled={starting} onClick={() => void openMine()}>
+          <button
+            className="btn-ghost px-2 py-1 text-xs text-brand-400"
+            disabled={starting}
+            onClick={() => void openMine()}
+          >
             {starting ? 'Abrindo…' : '+ Abrir meu terminal'}
           </button>
         )}

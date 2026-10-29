@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { api } from '../lib/api.ts'
 import { useHarpia } from '../lib/store.ts'
 import { Avatar } from './Avatar.tsx'
@@ -14,13 +14,56 @@ export function Dialog({
   wide?: boolean
   children: ReactNode
 }) {
+  const panel = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+  useEffect(() => {
+    closeRef.current = onClose
+  }, [onClose])
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const getFocusable = () =>
+      Array.from(
+        panel.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input, textarea, select, a[href], [tabindex="0"]'
+        ) ?? []
+      )
+    getFocusable()[0]?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        closeRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const elements = getFocusable()
+      const first = elements[0],
+        last = elements.at(-1)
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last?.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('keydown', onKey, true)
+      previous?.focus()
+    }
+  }, [])
   return (
     <div
-      className={`fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/60 px-4 ${wide ? 'pt-10 pb-10' : 'pt-24'}`}
+      className={`dialog-overlay fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/60 px-4 ${wide ? 'pt-10 pb-10' : 'pt-24'}`}
       onClick={onClose}
     >
       <div
-        className={`w-full ${wide ? 'max-w-4xl' : 'max-w-md'} rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl`}
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`dialog-panel w-full ${wide ? 'max-w-4xl' : 'max-w-md'} rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -61,9 +104,19 @@ export function ProjectForm({ onCreated }: { onCreated?: () => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <input className="input" placeholder="Nome do projeto" value={name} onChange={(e) => setName(e.target.value)} required />
+      <label className="field-label">
+        Nome do projeto
+        <input
+          className="input"
+          placeholder="Ex.: Meu aplicativo"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </label>
       <input
         className="input font-mono"
+        aria-label="URL do repositório"
         placeholder="https://github.com/equipe/repositorio.git"
         value={repoUrl}
         onChange={(e) => setRepoUrl(e.target.value)}
@@ -71,13 +124,14 @@ export function ProjectForm({ onCreated }: { onCreated?: () => void }) {
       />
       <input
         className="input font-mono"
+        aria-label="Branch principal"
         placeholder="Branch principal (opcional, ex.: main)"
         value={defaultBranch}
         onChange={(e) => setDefaultBranch(e.target.value)}
       />
       <p className="text-xs text-zinc-500">
-        O servidor do Harpia clona o repositório. Para repositórios privados, o login do GitHub precisa estar
-        configurado na VPS (veja docs/VPS.md).
+        O repositório será conectado ao workspace. Para repositórios privados, peça ao administrador para configurar o
+        acesso do GitHub.
       </p>
       {error && <p className="text-sm text-rose-400">{error}</p>}
       <button className="btn-primary w-full" disabled={busy}>

@@ -6,7 +6,7 @@ import { Avatar } from '../Avatar.tsx'
 export const CHAT_STATUS_STYLE: Record<Chat['status'], { dot: string; label: string }> = {
   working: { dot: 'bg-sky-400 animate-pulse', label: 'trabalhando' },
   waiting: { dot: 'bg-amber-400', label: 'esperando aprovação' },
-  idle: { dot: 'bg-zinc-500', label: 'parado' },
+  idle: { dot: 'bg-zinc-500', label: 'pronto' },
   closed: { dot: 'bg-zinc-700', label: 'encerrada' }
 }
 
@@ -53,7 +53,10 @@ export function ChatList({
   const closedCount = chats.filter((chat) => chat.status === 'closed').length
 
   return (
-    <nav className="flex min-h-0 flex-col border-r border-zinc-800 bg-zinc-950">
+    <nav
+      aria-label="Conversas da tarefa"
+      className="studio-session-list flex min-h-0 flex-col border-r border-zinc-800 bg-zinc-950"
+    >
       <div className="space-y-2 border-b border-zinc-800 p-3">
         <p className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Nova conversa</p>
         {disabledReason ? (

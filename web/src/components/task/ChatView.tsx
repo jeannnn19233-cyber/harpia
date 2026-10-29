@@ -9,20 +9,24 @@ import {
 import { api } from '../../lib/api.ts'
 import { useHarpia } from '../../lib/store.ts'
 import { Avatar } from '../Avatar.tsx'
+import { Icon } from '../Icon.tsx'
 import { RichText } from './RichText.tsx'
 
 function ToolCard({ item }: { item: Extract<ChatItem, { kind: 'tool' }> }) {
   const [open, setOpen] = useState(false)
   const icon = item.status === 'running' ? '⋯' : item.status === 'failed' ? '✕' : '✓'
-  const color = item.status === 'running' ? 'text-sky-400' : item.status === 'failed' ? 'text-rose-400' : 'text-emerald-400'
+  const color =
+    item.status === 'running' ? 'text-sky-400' : item.status === 'failed' ? 'text-rose-400' : 'text-emerald-400'
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 text-xs">
+    <div className="studio-tool-card rounded-lg border border-zinc-800 bg-zinc-900/60 text-xs">
       <button
         className="flex w-full items-center gap-2 px-3 py-2 text-left"
         onClick={() => setOpen(!open)}
         disabled={!item.output}
       >
-        <span className={`w-3 shrink-0 text-center ${color} ${item.status === 'running' ? 'animate-pulse' : ''}`}>{icon}</span>
+        <span className={`w-3 shrink-0 text-center ${color} ${item.status === 'running' ? 'animate-pulse' : ''}`}>
+          {icon}
+        </span>
         <span className="font-medium text-zinc-300">{item.name}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-zinc-500">{item.summary}</span>
         {item.output && <span className="text-zinc-500">{open ? 'ocultar' : 'ver saída'}</span>}
@@ -54,7 +58,7 @@ function ApprovalCard({
   }[item.status]
   return (
     <div
-      className={`rounded-lg border px-3 py-2.5 text-sm ${
+      className={`studio-approval rounded-lg border px-3 py-2.5 text-sm ${
         item.status === 'pending' ? 'border-amber-500/50 bg-amber-950/30' : 'border-zinc-800 bg-zinc-900/60'
       }`}
     >
@@ -131,16 +135,16 @@ export function ChatView({ chatId }: { chatId: number }) {
   }
 
   const placeholder = waiting
-    ? 'Responda o pedido de aprovação acima para continuar.'
+    ? 'Aguardando sua decisão no pedido de aprovação.'
     : busy
-      ? 'O agente está trabalhando. Sua mensagem entra no meio do trabalho dele (ex.: "enquanto isso, siga para a parte 4").'
+      ? 'Oriente o agente enquanto ele trabalha…'
       : suggestion
         ? `${suggestion}   (Tab para usar)`
-        : `Mensagem para o ${CHAT_PROVIDER_LABELS[chat.provider]} (Enter envia, Shift+Enter quebra linha)`
+        : `Mensagem para o ${CHAT_PROVIDER_LABELS[chat.provider]}…`
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b border-zinc-800 px-4 py-2">
+    <div className="studio-chat flex min-h-0 flex-1 flex-col">
+      <header className="studio-chat-header flex items-center gap-3 border-b border-zinc-800 px-4 py-2">
         <Avatar user={owner} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{chat.title}</p>
@@ -162,7 +166,9 @@ export function ChatView({ chatId }: { chatId: number }) {
             ))}
           </select>
         ) : (
-          !mine && <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Acompanhando · só leitura</span>
+          !mine && (
+            <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Acompanhando · só leitura</span>
+          )
         )}
         {mine && chat.status !== 'closed' && (
           <button
@@ -176,7 +182,7 @@ export function ChatView({ chatId }: { chatId: number }) {
 
       <div
         ref={scroller}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+        className="studio-message-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4"
         onScroll={(event) => {
           const element = event.currentTarget
           stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80
@@ -196,15 +202,27 @@ export function ChatView({ chatId }: { chatId: number }) {
               case 'user':
                 return (
                   <div key={item.id} className="flex flex-col items-end gap-1">
-                    <div className="max-w-[85%] rounded-2xl bg-zinc-800 px-4 py-2.5 text-sm whitespace-pre-wrap">{item.text}</div>
-                    {item.steer && <span className="text-[11px] text-zinc-500">enviada durante o trabalho do agente</span>}
+                    <div className="studio-user-message max-w-[85%] rounded-2xl bg-zinc-800 px-4 py-2.5 text-sm whitespace-pre-wrap">
+                      {item.text}
+                    </div>
+                    {item.steer && (
+                      <span className="text-[11px] text-zinc-500">enviada durante o trabalho do agente</span>
+                    )}
                   </div>
                 )
               case 'assistant':
                 return (
-                  <div key={item.id} className="text-zinc-200">
+                  <div key={item.id} className="studio-assistant-message text-zinc-200">
+                    <span className="message-author">
+                      <span className={`provider-symbol ${chat.provider}`}>
+                        {chat.provider === 'claude' ? '✳' : '⌘'}
+                      </span>
+                      {CHAT_PROVIDER_LABELS[chat.provider]}
+                    </span>
                     <RichText text={item.text} />
-                    {item.streaming && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-brand-400 align-middle" />}
+                    {item.streaming && (
+                      <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-brand-400 align-middle" />
+                    )}
                   </div>
                 )
               case 'tool':
@@ -227,7 +245,10 @@ export function ChatView({ chatId }: { chatId: number }) {
                 )
               case 'error':
                 return (
-                  <div key={item.id} className="rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
+                  >
                     {item.text}
                   </div>
                 )
@@ -243,14 +264,22 @@ export function ChatView({ chatId }: { chatId: number }) {
 
       {error && <div className="border-t border-rose-900 bg-rose-950 px-4 py-2 text-sm text-rose-300">{error}</div>}
       {mine && chat.status !== 'closed' && (
-        <form onSubmit={send} className="border-t border-zinc-800 px-4 py-3">
+        <form onSubmit={send} className="studio-composer border-t border-zinc-800 px-4 py-3">
           {suggestion && !busy && !text && (
             <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 text-xs">
               <span className="text-zinc-500">Sugestão do {CHAT_PROVIDER_LABELS[chat.provider]}:</span>
-              <button type="button" className="min-w-0 truncate text-left text-zinc-300 hover:underline" onClick={() => setText(suggestion)}>
+              <button
+                type="button"
+                className="min-w-0 truncate text-left text-zinc-300 hover:underline"
+                onClick={() => setText(suggestion)}
+              >
                 {suggestion}
               </button>
-              <button type="button" className="btn-ghost shrink-0 px-2 py-0.5 text-xs text-brand-400" onClick={() => void send(undefined, suggestion)}>
+              <button
+                type="button"
+                className="btn-ghost shrink-0 px-2 py-0.5 text-xs text-brand-400"
+                onClick={() => void send(undefined, suggestion)}
+              >
                 Enviar sugestão
               </button>
             </div>
@@ -282,6 +311,17 @@ export function ChatView({ chatId }: { chatId: number }) {
             <button className="btn-primary" disabled={!text.trim() || waiting}>
               Enviar
             </button>
+          </div>
+          <div className="composer-status">
+            <span>
+              <i className={`mini-state ${chat.status}`} />
+              {chat.status === 'waiting'
+                ? 'Aguardando aprovação'
+                : chat.status === 'working'
+                  ? 'Executando · mensagens entram durante o trabalho'
+                  : 'Pronto para continuar'}
+            </span>
+            <span>Enter envia · Shift + Enter quebra linha</span>
           </div>
         </form>
       )}

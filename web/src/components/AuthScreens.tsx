@@ -1,17 +1,35 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { User } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
+import { Icon } from './Icon.tsx'
 
 function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-full items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="text-3xl font-bold tracking-tight text-brand-400">Harpia</div>
-          <h1 className="mt-4 text-lg font-semibold">{title}</h1>
-          <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
+    <div className="connection-shell">
+      <header>
+        <img src="/brand/harpia-amazonia.png" alt="" />
+        <strong>Harpia</strong>
+        <span>Workspace de agentes</span>
+      </header>
+      <main>
+        <div className="connection-card">
+          <div className="connection-heading">
+            <span>
+              <Icon name="terminal" size={22} />
+            </span>
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+          </div>
+          {children}
+          <footer>
+            <i className="connection-led connected" />
+            Claude · Codex · Sua equipe
+          </footer>
         </div>
-        {children}
+      </main>
+      <div className="connection-footer">
+        <span>Harpia</span>
+        <span>Um espaço de trabalho. Várias inteligências.</span>
       </div>
     </div>
   )
@@ -76,7 +94,13 @@ function AccountForm({
         </Field>
       )}
       <Field label="Nome">
-        <input className="input" value={name} onChange={(e) => setName(e.target.value)} required autoFocus={!askSetupCode} />
+        <input
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          autoFocus={!askSetupCode}
+        />
       </Field>
       <Field label="E-mail">
         <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -133,10 +157,23 @@ export function LoginScreen({ onDone }: { onDone: (user: User) => void }) {
     <Shell title="Entrar" subtitle="Workspace da equipe">
       <form onSubmit={submit} className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-6">
         <Field label="E-mail">
-          <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+          <input
+            className="input"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoFocus
+          />
         </Field>
         <Field label="Senha">
-          <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input
+            className="input"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </Field>
         {error && <p className="text-sm text-rose-400">{error}</p>}
         <button className="btn-primary w-full" disabled={busy}>
@@ -158,7 +195,12 @@ export function InviteScreen({ token, onDone }: { token: string; onDone: (user: 
       .catch(() => setState('invalid'))
   }, [token])
 
-  if (state === 'checking') return <Shell title="Convite" subtitle="Verificando o convite…">{null}</Shell>
+  if (state === 'checking')
+    return (
+      <Shell title="Convite" subtitle="Verificando o convite…">
+        {null}
+      </Shell>
+    )
   if (state === 'invalid') {
     return (
       <Shell title="Convite inválido" subtitle="Este convite expirou ou já foi usado. Peça um novo ao administrador.">
