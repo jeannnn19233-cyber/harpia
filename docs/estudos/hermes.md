@@ -31,8 +31,28 @@ copiado**; se algum trecho for, registre o aviso MIT em `THIRD_PARTY_NOTICES.md`
 - Memória que o agente escreve sozinho a cada turno: com várias pessoas na mesma task, isso
   contamina a memória (o próprio Hermes recomenda um agente por memória).
 
-## Ponto em aberto
+## Ponto em aberto (resolvido)
 
-O vigia precisa de uma IA barata (ex.: Claude Haiku via `claude -p`, ou um modelo pequeno do
-Codex). Como o Harpia não usa chave de API, alguém precisa ceder um login para um usuário
-"vigia" no servidor.
+As partes com IA do vigia (fase 4b) vão rodar no Claude Code de cada pessoa envolvida, nunca
+numa conta central (decisão dos sócios).
+
+## Cron, cofre e revisão de PR (fase 6)
+
+O Hermes não tem uma função pronta de "cofre" nem de "revisor de PR": as duas são montadas com
+três peças genéricas, que o Harpia reproduziu:
+
+- **Cron** (`cron/scheduler_tick.py`, `cron/scheduler_prompt.py`, `cron/executions.py`): o
+  próximo horário é avançado antes de rodar ("no máximo uma vez"); horário perdido roda uma vez
+  dentro de uma tolerância; cada execução é uma sessão nova; `[SILENT]` não entrega; falhas
+  avisam uma vez por motivo; cota esgotada estaciona o job. No Harpia: `server/src/routines/`.
+- **Cofre**: uma pasta do Obsidian que o agente lê e escreve com as ferramentas de arquivo,
+  seguindo as skills `note-taking/obsidian` e `research/llm-wiki` (SCHEMA/index/log, `raw/`
+  imutável com sha256, wikilinks, regras para criar páginas, contradições registradas). A
+  conversa do Telegram é o próprio agente. No Harpia: `server/src/vault/`, com a captura do
+  original feita antes da IA (o Hermes não guarda o original sozinho).
+- **Revisão de PR** (guias `github-pr-review-agent.md` e `webhook-github-pr-review.md`, skills
+  `code-review` e `requesting-code-review`): checklist de correção, segurança, desempenho e
+  testes; "não invente problemas"; diff marcado como dado não confiável; saída estruturada com
+  falha fechada. O Hermes não guarda qual commit já revisou (usa janela de tempo); o Harpia
+  revisa cada head SHA uma vez, no Claude do autor, e nunca aprova. No Harpia:
+  `server/src/reviews/`.

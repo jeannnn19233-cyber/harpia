@@ -36,12 +36,17 @@ Em **Environment Variables**:
 | `HARPIA_TELEGRAM_BOT_TOKEN` | token do bot (marque como secreto) | Avisos no Telegram. Crie o bot com o [@BotFather](https://t.me/BotFather). |
 | `HARPIA_STALE_HOURS` | `48` (padrão) | Depois de quantas horas sem atividade o vigia avisa que a task está parada. |
 | `HARPIA_REVIEW_HOURS` | `24` (padrão) | Depois de quantas horas em Revisão sem PR o vigia pergunta se dá para concluir. |
+| `HARPIA_REVIEW_POLL_SECONDS` | `180` (padrão) | De quanto em quanto tempo o Harpia olha os PRs abertos para a revisão automática. |
+| `HARPIA_REVIEW_SETTLE_SECONDS` | `180` (padrão) | Quanto tempo um PR precisa ficar sem commits novos antes de ser revisado. |
+| `HARPIA_MAX_CONCURRENT_RUNS` | `3` (padrão) | Quantas rotinas podem rodar ao mesmo tempo no servidor. |
 
 Para gerar o código de configuração: `openssl rand -base64 24`.
 
 O token do GitHub pode ser um *fine-grained token* com acesso só aos repositórios da equipe e
 as permissões **Contents: Read and write** (para enviar as branches) e **Pull requests: Read and
-write** (para abrir os PRs e saber quando tiveram merge).
+write** (para abrir os PRs, saber quando tiveram merge e publicar as revisões automáticas).
+As revisões aparecem no GitHub em nome da conta dona do token. Para elas aparecerem como um bot,
+crie uma conta de máquina (ex.: `harpia-bot`) com acesso aos repositórios e gere o token nela.
 
 ## 4. Limites de recursos
 
@@ -110,8 +115,17 @@ Os agentes rodam dentro do container. Um novo deploy (ou reinício) interrompe o
 estavam trabalhando: a conversa avisa e, na próxima mensagem, continua de onde parou. As
 conversas, cópias de trabalho, branches e logins continuam no volume.
 
+### Rotinas, revisões e o agente do Telegram (fase 6)
+
+Usam o mesmo login do Claude Code de cada pessoa (em "Minhas IAs") e precisam de
+`HARPIA_TERMINALS=on`. O agente do Telegram precisa de `HARPIA_TELEGRAM_BOT_TOKEN`. O Obsidian
+Sync (`obsidian-headless`) já vem na imagem; cada pessoa conecta o dela em "Meu agente".
+
 ## Segurança
 
 - Tudo exige login, convites valem uma vez só e a criação do administrador exige o código de
   configuração.
 - Os terminais ficam desligados até `HARPIA_TERMINALS=on`. Veja o checklist acima antes de ligar.
+- Rotinas, revisões e o agente do Telegram rodam sem ninguém aprovando, então nunca têm
+  terminal: só as ferramentas de arquivo (presas a uma pasta, inclusive contra links simbólicos)
+  e, quando liberada, a web. A revisão de PR só lê a cópia do PR e nunca aprova no GitHub.

@@ -22,7 +22,7 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 | 4 | Vigia: task parada, Revisão sem PR, tasks parecidas e pessoas mexendo nos mesmos arquivos; tasks parecidas ao criar; memória do projeto nas conversas; avisos no Telegram (ideias do Hermes, veja [estudos/hermes.md](estudos/hermes.md)) | **pronta** (parte sem IA) |
 | 2 | Conversas com o Claude e o Codex fora das tasks, com o login de cada pessoa e escolha do modelo | **pronta** |
 | 4b | Partes com IA: julgar tasks parecidas, resumo de cada task concluída, sugestões de aprendizado para o `AGENTS.md`. Rodam no Claude Code de cada pessoa envolvida (decisão dos sócios), nunca numa conta central | |
-| 6 | Agendamentos (cron), como no Hermes: alimentar o vault do agente pessoal pelo Telegram e revisar os PRs da equipe no GitHub | em estudo |
+| 6 | Como no Hermes: rotinas agendadas (cron), revisão automática dos PRs no GitHub e o agente pessoal de cada um no Telegram, com o cofre do Obsidian | **pronta** |
 
 ## Onde roda
 
@@ -196,6 +196,74 @@ O servidor nunca roda git dentro do repositório da pessoa e o agente nunca vê 
 - Tudo o que vale nas tasks vale aqui: aprovações, mensagens durante o trabalho, sugestão da
   próxima mensagem e avisos no Telegram.
 
+## Regras de negócio da fase 6
+
+Tudo aqui roda no **Claude Code de cada pessoa** (decisão dos sócios), sem ninguém aprovando.
+Por isso, toda execução automática segue uma política fixa: só as ferramentas liberadas para
+aquele caso existem (nunca o terminal), tudo que não foi liberado é recusado sem perguntar
+(modo `dontAsk`) e um gancho confere, antes de cada ferramenta, que o arquivo está dentro da
+pasta permitida, seguindo links simbólicos. O estudo do Hermes que deu origem a esta fase está
+em [estudos/hermes.md](estudos/hermes.md#cron-cofre-e-revisão-de-pr-fase-6).
+
+### Rotinas (aba "Rotinas")
+
+- Cada pessoa agenda o próprio agente: todo dia, dias úteis, toda semana, a cada N horas ou
+  minutos (mínimo 15) ou cron de 5 campos, no horário de Brasília. Modelos prontos: resumo da
+  manhã, diário do cofre e revisão semanal do cofre.
+- O agente trabalha numa pasta só da rotina ou no cofre; pode ou não usar a web; escolhe o
+  modelo da conta. Com "lembrar da execução anterior", a última resposta entra no contexto.
+- **Cada horário roda no máximo uma vez:** o próximo horário é reservado antes de rodar. Se o
+  servidor ficou fora do ar, um horário perdido roda uma vez se o atraso for pequeno (metade do
+  intervalo, entre 2 min e 2 h); senão vira "pulada". Execuções interrompidas por um reinício
+  não são repetidas sozinhas. "Rodar agora" é uma execução extra.
+- Cada execução é uma conversa nova (assistível em "Rotinas", fora da lista de Conversas). A
+  resposta vai para o Telegram (ou fica só no Harpia). `[SILENT]` = nada novo, não entrega;
+  `[FALHA]` na primeira linha = falhou.
+- Falhas avisam uma vez por motivo; 5 falhas seguidas pausam a rotina. Cota do Claude esgotada
+  segura a rotina por 1 hora e avisa uma vez. Agente parado por 10 minutos é interrompido.
+- No máximo 3 execuções automáticas ao mesmo tempo no servidor (`HARPIA_MAX_CONCURRENT_RUNS`).
+
+### Revisão de PRs (botão "Revisões" no quadro)
+
+- Ligada por projeto. A cada 3 minutos o servidor olha os PRs abertos no GitHub, sem IA. Cada
+  commit (head SHA) é revisado uma vez para a equipe toda, depois de 3 minutos sem commits
+  novos. Rascunhos e PRs com o rótulo `sem-revisao-ia` ficam de fora.
+- A revisão roda no **Claude do autor do PR**: cada pessoa informa o usuário do GitHub em
+  "Minhas IAs". PR de quem não está no Harpia fica "pulado" até alguém pedir a revisão com a
+  própria conta ("Revisar agora").
+- O agente só lê uma cópia do commit (Read, Glob e Grep), recebe o diff marcado como conteúdo
+  não confiável e responde em JSON. O servidor confere o JSON, pede o formato de novo uma vez e
+  calcula o veredito pelas regras: algum crítico ou aviso = "pedir mudanças".
+- Publicação no GitHub **sempre como comentário**, nunca aprovação (com proteção de branch, uma
+  aprovação da IA contaria como aprovação humana). Achados em linhas do diff viram comentários
+  na linha; os demais vão no resumo. Se o GitHub recusar as linhas, tudo vai no resumo.
+- Segredos no diff (tokens, chaves, senhas) viram aviso crítico automático e são mascarados em
+  tudo que sai do servidor: para o modelo, para o GitHub e para o Telegram.
+- Resumo no Telegram do autor; se o PR saiu de uma task do Harpia, a revisão entra no histórico
+  da task ("Harpia revisou o PR #12…").
+
+### Agente pessoal no Telegram ("Meu agente")
+
+- Quem vinculou o Telegram conversa com o próprio Claude pelo bot. O agente trabalha no
+  **cofre** da pessoa (`~/cofre` no servidor), com arquivos e web, sem terminal.
+- Tudo o que chega (texto, link, foto, PDF, áudio, vídeo) é guardado **na hora, sem IA**, em
+  `raw/telegram/AAAA-MM-DD/HHMMSS-<id>.md` (e o arquivo ao lado), com frontmatter e sha256. A
+  mesma mensagem nunca é guardada duas vezes. Os arquivos são gravados como a pessoa, nunca como
+  root.
+- Depois, o Claude organiza as notas seguindo as instruções do cofre (adaptadas do "LLM Wiki"
+  do Hermes): orientar-se por `SCHEMA.md`, `index.md` e `log.md`; seguir a organização que o
+  cofre já tem; `raw/` intocado; uma página por assunto com `[[wikilinks]]`; contradições
+  registradas; perguntar antes de mexer em mais de 10 páginas. E responde no Telegram.
+- Mensagem que chega com o agente trabalhando entra na mesma vez. A conversa do Telegram também
+  aparece em "Conversas" (só para a dona).
+- Comandos: `/novo` (conversa nova; o cofre continua), `/rotinas`, `/rodar nome`, `/pausar nome`,
+  `/retomar nome`, `/ajuda`.
+- **Obsidian Sync:** a pessoa conecta uma vez pelo terminal em "Meu agente" (`ob login` e
+  `ob sync-setup --path ~/cofre`). O Harpia mantém `ob sync --continuous` ligado para ela
+  (confere a cada 2 minutos). Sem o Obsidian Sync, o cofre fica só no servidor.
+- Áudio ainda não tem transcrição (precisaria de um Whisper no servidor): o áudio é guardado e
+  o agente pede um resumo em texto.
+
 ## Regras de negócio da fase 4
 
 O vigia segue a ideia do Hermes de **regras fixas primeiro**: nada aqui usa IA, então não custa
@@ -234,6 +302,7 @@ copiados do Orca devem manter o aviso de licença original em `THIRD_PARTY_NOTIC
 
 ## Uso do Hermes
 
-O [Hermes Agent](https://github.com/NousResearch/hermes-agent) (licença MIT) é a referência para a
-fase 4: vigia, memória por projeto e avisos por mensagem. O estudo está em
+O [Hermes Agent](https://github.com/NousResearch/hermes-agent) (licença MIT) é a referência para as
+fases 4 e 6: vigia, memória por projeto, avisos por mensagem, rotinas agendadas, revisão de PRs
+e o agente pessoal com o cofre. O estudo está em
 [estudos/hermes.md](estudos/hermes.md). Nenhum código foi copiado.
