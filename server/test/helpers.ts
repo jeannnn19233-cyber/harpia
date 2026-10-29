@@ -5,6 +5,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { buildApp } from '../src/app.ts'
 import type { AppContext } from '../src/context.ts'
 import type { AgentSystem } from '../src/agents/system.ts'
+import type { ProviderFactory } from '../src/chat/providers/types.ts'
 import type { GitRunner } from '../src/projects/git.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 
@@ -12,7 +13,7 @@ export interface TestServer {
   app: FastifyInstance
   ctx: AppContext
   dataDir: string
-  close(): Promise<void>
+  close(keepData?: boolean): Promise<void>
 }
 
 export const fakeGit: GitRunner = {
@@ -30,13 +31,15 @@ export async function startServer(
   options: {
     git?: GitRunner
     agents?: AgentSystem
+    chatProviders?: ProviderFactory
+    dataDir?: string
     allowedOrigins?: string[]
     setupCode?: string
     terminalsEnabled?: boolean
     maxSessionsPerUser?: number
   } = {}
 ): Promise<TestServer> {
-  const dataDir = mkdtempSync(join(tmpdir(), 'harpia-test-'))
+  const dataDir = options.dataDir ?? mkdtempSync(join(tmpdir(), 'harpia-test-'))
   const { app, ctx } = await buildApp({
     config: {
       dataDir,
@@ -49,16 +52,19 @@ export async function startServer(
       maxSessionsPerUser: options.maxSessionsPerUser ?? 5
     },
     git: options.git ?? fakeGit,
-    agents: options.agents ?? new FakeAgentSystem()
+    agents: options.agents ?? new FakeAgentSystem(),
+    chatProviders: options.chatProviders ?? (() => {
+      throw new Error('Este teste não configurou provedores de chat.')
+    })
   })
   await app.ready()
   return {
     app,
     ctx,
     dataDir,
-    async close() {
+    async close(keepData = false) {
       await app.close()
-      rmSync(dataDir, { recursive: true, force: true })
+      if (!keepData) rmSync(dataDir, { recursive: true, force: true })
     }
   }
 }

@@ -8,6 +8,11 @@ import { LinuxAgentSystem } from './agents/linux.ts'
 import { registerAgentRoutes } from './agents/routes.ts'
 import type { AgentSystem } from './agents/system.ts'
 import { registerAuthGuard } from './auth/guard.ts'
+import { ChatManager } from './chat/manager.ts'
+import { createClaudeProvider } from './chat/providers/claude.ts'
+import { createCodexProvider } from './chat/providers/codex.ts'
+import type { ProviderFactory } from './chat/providers/types.ts'
+import { registerChatRoutes } from './chat/routes.ts'
 import { registerAuthRoutes } from './auth/routes.ts'
 import { deleteExpiredSessions } from './auth/sessions.ts'
 import type { AppConfig, AppContext } from './context.ts'
@@ -24,6 +29,7 @@ export interface BuildOptions {
   logger?: FastifyServerOptions['logger']
   git?: GitRunner
   agents?: AgentSystem
+  chatProviders?: ProviderFactory
   now?: () => Date
 }
 
@@ -66,6 +72,15 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
   registerProjectRoutes(app, ctx)
   registerTaskRoutes(app, ctx)
   registerAgentRoutes(app, ctx)
+  // Os provedores rodam como o usuário Linux de quem abriu a conversa.
+  const providers: ProviderFactory =
+    options.chatProviders ??
+    ((input) => {
+      const spawn = (process: { command: string; args: string[]; cwd: string; env: Record<string, string> }) =>
+        ctx.agents.spawnPiped({ user: input.user, ...process })
+      return input.provider === 'claude' ? createClaudeProvider(input, spawn) : createCodexProvider(input, spawn)
+    })
+  registerChatRoutes(app, ctx, new ChatManager(ctx, providers))
   registerRealtimeRoutes(app, ctx)
 
   const webDir = options.config.webDir

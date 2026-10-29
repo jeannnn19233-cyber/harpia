@@ -17,7 +17,7 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 | Fase | Entrega | Situação |
 |---|---|---|
 | 1 | Login, convites, projetos (clone do repositório), quadro de tasks em tempo real, histórico e comentários, serviço 24h | **pronta** |
-| 3 | Na task, cada participante abre o próprio agente (Claude Code ou Codex) numa worktree própria; terminais ao vivo para a equipe; sessões persistentes (tmux) | **pronta** |
+| 3 | Na task, cada participante conversa com o próprio agente (Claude ou Codex) num chat, numa worktree própria; terminal embaixo do chat; a equipe acompanha tudo ao vivo | **pronta** |
 | 5 | GitHub: abrir PR pelo Harpia; task vai para "Feito" sozinha quando o PR tem merge | próxima |
 | 4 | Agente vigia: avisa task duplicada, gente mexendo nos mesmos arquivos, task parada há muito tempo, task pronta e ainda aberta | |
 | 2 | Chat de IA com Claude e Codex usando o login de cada pessoa | |
@@ -69,7 +69,33 @@ Escolhas principais:
 - Ir para "Feito" registra a data de conclusão; reabrir limpa. Na fase 5, "Feito" passa a
   depender do merge do PR.
 
+## Tela da task
+
+Inspirada no Orca: a conversa com o agente é o centro do trabalho.
+
+```
+┌ ← Quadro · T-12 Tela de checkout ───────────────────────────────── Em andamento ┐
+│ Conversas         │ Chat com o agente (centro)                │ Task             │
+│  + Claude + Codex │   mensagens, comandos, edições,           │  status, dono    │
+│  Minhas           │   pedidos de aprovação                    │  quem está       │
+│  Da equipe        │   [caixa de mensagem]                     │  descrição       │
+│                   ├───────────────────────────────────────────┤  histórico e     │
+│                   │ Terminal (embaixo, no centro)             │  comentários     │
+└───────────────────┴───────────────────────────────────────────┴──────────────────┘
+```
+
 ## Regras de negócio da fase 3
+
+- Cada pessoa abre conversas com o Claude ou o Codex na task. Só quem abriu envia mensagens e
+  responde aos pedidos de aprovação; o resto da equipe acompanha ao vivo, em modo leitura.
+- Modos de permissão por conversa: **Pedir aprovação** (padrão), **Aceitar edições** e
+  **Autônomo**.
+- O processo do agente só começa na primeira mensagem e fica rodando no servidor. Conversas
+  paradas há mais de 20 minutos têm o processo desligado para poupar memória; a próxima
+  mensagem retoma a mesma conversa (o Claude e o Codex guardam o histórico na pasta da pessoa).
+- Se o servidor reinicia no meio de uma resposta, a conversa avisa e volta a esperar mensagem.
+- O terminal embaixo do chat é de apoio: abre só quando a pessoa pede, na cópia dela, e não
+  mexe no histórico da task. Os terminais dos colegas aparecem como abas só de leitura.
 
 - Os terminais ficam desligados até o administrador definir `HARPIA_TERMINALS=on`.
 - Cada pessoa trabalha numa cópia própria do repositório, na branch `harpia/T-<número>-<nome>-<id>`,
@@ -82,6 +108,25 @@ Escolhas principais:
 - Abrir, encerrar e o fim de cada sessão ficam no histórico da task.
 
 ### Como funciona por dentro
+
+Chat:
+
+```
+navegador ──HTTP/WebSocket──▶ servidor (ChatManager) ──▶ adaptador do provedor
+                                                           ├─ Claude: Claude Agent SDK, com o processo
+                                                           │  iniciado como runuser -u h<id> claude …
+                                                           └─ Codex: codex app-server (JSON-RPC por
+                                                              linhas), como runuser -u h<id>
+```
+
+- Cada mensagem, texto do agente, comando, edição e aprovação vira um item da conversa
+  (`chat_items`), salvo no banco e transmitido para quem está olhando.
+- O Claude usa o mesmo caminho do Orca: o Agent SDK com uma função própria para iniciar o
+  processo (`spawnClaudeCodeProcess`), o que permite rodar como o usuário da pessoa.
+- O Codex fala o protocolo do `codex app-server` (o mesmo que os editores usam). O sandbox
+  próprio do Codex não funciona dentro do container; o isolamento vem do usuário Linux.
+
+Terminal:
 
 ```
 navegador (xterm.js) ──WebSocket──▶ servidor ──node-pty──▶ runuser -u h<id> tmux attach
@@ -100,9 +145,10 @@ navegador (xterm.js) ──WebSocket──▶ servidor ──node-pty──▶ r
 
 ## Uso do Orca
 
-O [Orca](https://github.com/stablyai/orca) (licença MIT) foi a referência de estudo. Na fase 3 o
-Harpia usou as mesmas bibliotecas base (`node-pty`, `xterm.js`), mas um desenho próprio e mais
-simples, com tmux no lugar do processo de terminais do Orca; nenhum código foi copiado. Para a
+O [Orca](https://github.com/stablyai/orca) (licença MIT) foi a referência de estudo. O Harpia
+usa os mesmos caminhos do Orca para falar com os agentes (Claude Agent SDK e `codex app-server`)
+e as mesmas bibliotecas de terminal (`node-pty`, `xterm.js`), mas com um desenho próprio e mais
+simples (tmux no lugar do processo de terminais do Orca); nenhum código foi copiado. Para a
 fase 4, os hooks do Claude Code e do Codex que o Orca usa para saber se um agente está
 trabalhando, esperando ou parado (`src/main/agent-hooks`) são a próxima referência. Trechos
 copiados do Orca devem manter o aviso de licença original em `THIRD_PARTY_NOTICES.md`.

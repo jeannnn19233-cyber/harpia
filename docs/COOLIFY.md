@@ -72,7 +72,8 @@ Depois copie `/data/backup.db` para fora do servidor (ou ative os backups de vol
 
 ## Ligar os agentes de IA (fase 3)
 
-Com `HARPIA_TERMINALS=on`, cada pessoa abre o próprio Claude Code ou Codex dentro das tasks.
+Com `HARPIA_TERMINALS=on`, cada pessoa conversa com o próprio Claude ou Codex dentro das tasks
+(e tem um terminal embaixo do chat).
 Isso significa que **quem entra no Harpia consegue rodar comandos no servidor**. Antes de ligar:
 
 1. **Rede separada do Clarumi.** No Coolify, crie um *Destination* novo (Servers → seu servidor →
@@ -102,8 +103,9 @@ e conecta a própria conta do Claude Code e do Codex.
 
 ### O que acontece num deploy
 
-Os agentes rodam dentro do container. Um novo deploy (ou reinício) encerra os agentes abertos;
-o histórico da task registra o fim. As cópias de trabalho, branches e logins continuam no volume.
+Os agentes rodam dentro do container. Um novo deploy (ou reinício) interrompe os agentes que
+estavam trabalhando: a conversa avisa e, na próxima mensagem, continua de onde parou. As
+conversas, cópias de trabalho, branches e logins continuam no volume.
 
 ## Segurança
 

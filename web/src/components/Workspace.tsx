@@ -3,11 +3,11 @@ import type { Project } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { startRealtime } from '../lib/realtime.ts'
 import { useHarpia } from '../lib/store.ts'
-import { AccountsDialog, SessionsOverlay } from './Agents.tsx'
+import { AccountsDialog } from './AccountsDialog.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Board } from './Board.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
-import { TaskPanel } from './TaskPanel.tsx'
+import { TaskWorkspace } from './task/TaskWorkspace.tsx'
 
 function CloneBadge({ project }: { project: Project }) {
   const upsertProject = useHarpia((state) => state.upsertProject)
@@ -29,8 +29,7 @@ function CloneBadge({ project }: { project: Project }) {
 }
 
 export function Workspace({ onLogout }: { onLogout: () => void }) {
-  const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus, watchingSessionId } =
-    useHarpia()
+  const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus } = useHarpia()
   const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | null>(null)
 
   useEffect(() => startRealtime(), [])
@@ -94,7 +93,9 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
-      {project ? (
+      {project && openTaskId ? (
+        <TaskWorkspace key={openTaskId} taskId={openTaskId} />
+      ) : project ? (
         <Board projectId={project.id} />
       ) : (
         <div className="flex flex-1 items-start justify-center px-4 pt-20">
@@ -106,7 +107,6 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
         </div>
       )}
 
-      {openTaskId && <TaskPanel key={openTaskId} taskId={openTaskId} />}
       {dialog === 'project' && (
         <Dialog title="Novo projeto" onClose={() => setDialog(null)}>
           <ProjectForm onCreated={() => setDialog(null)} />
@@ -114,7 +114,7 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
       )}
       {dialog === 'team' && <TeamDialog onClose={() => setDialog(null)} />}
       {dialog === 'accounts' && <AccountsDialog onClose={() => setDialog(null)} />}
-      {watchingSessionId && <SessionsOverlay sessionId={watchingSessionId} />}
+
     </div>
   )
 }

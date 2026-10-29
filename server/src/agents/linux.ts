@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn as spawnChild, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { chmod, chown, mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -250,6 +250,15 @@ export class LinuxAgentSystem implements AgentSystem {
       resize: (cols, rows) => terminal.resize(cols, rows),
       kill: () => terminal.kill()
     }
+  }
+
+  spawnPiped(input: { user: User; command: string; args: string[]; cwd: string; env?: Record<string, string> }): ChildProcess {
+    const extra = Object.entries(input.env ?? {}).map(([key, value]) => `${key}=${value}`)
+    return spawnChild(
+      'runuser',
+      ['-u', this.linuxName(input.user), '--', 'env', '-i', '-C', input.cwd, ...this.env(input.user), ...extra, input.command, ...input.args],
+      { cwd: '/', stdio: ['pipe', 'pipe', 'pipe'], env: { PATH } }
+    )
   }
 
   async accounts(user: User): Promise<AgentAccounts> {

@@ -52,6 +52,7 @@ export interface Task {
 }
 
 export type TaskEventType =
+  | 'chat_started'
   | 'agent_started'
   | 'agent_stopped'
   | 'created'
@@ -117,6 +118,67 @@ export interface AgentAccounts {
   codex: boolean
 }
 
+// Conversas com os agentes de IA (chat), a forma principal de trabalhar numa task.
+export const CHAT_PROVIDERS = ['claude', 'codex'] as const
+export type ChatProvider = (typeof CHAT_PROVIDERS)[number]
+
+export const CHAT_PROVIDER_LABELS: Record<ChatProvider, string> = {
+  claude: 'Claude',
+  codex: 'Codex'
+}
+
+// O quanto o agente pode fazer sem pedir aprovação.
+export const PERMISSION_MODES = ['ask', 'edits', 'auto'] as const
+export type PermissionMode = (typeof PERMISSION_MODES)[number]
+
+export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
+  ask: 'Pedir aprovação',
+  edits: 'Aceitar edições',
+  auto: 'Autônomo'
+}
+
+// idle: esperando mensagem; working: trabalhando; waiting: esperando aprovação.
+export type ChatStatus = 'idle' | 'working' | 'waiting' | 'closed'
+
+export interface Chat {
+  id: number
+  taskId: number | null
+  userId: number
+  provider: ChatProvider
+  title: string
+  status: ChatStatus
+  permissionMode: PermissionMode
+  branch: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+interface ChatItemBase {
+  id: number
+  chatId: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type ChatItem = ChatItemBase &
+  (
+    | { kind: 'user'; text: string; authorId: number }
+    | { kind: 'assistant'; text: string; streaming: boolean }
+    | { kind: 'tool'; name: string; summary: string; status: 'running' | 'done' | 'failed'; output: string | null }
+    | {
+        kind: 'approval'
+        title: string
+        detail: string
+        status: 'pending' | 'allowed' | 'denied' | 'expired'
+        decidedBy: number | null
+      }
+    | { kind: 'error'; text: string }
+    // Aviso passageiro do agente, como "sem conexão, tentando de novo".
+    | { kind: 'notice'; text: string }
+  )
+
+export type ChatItemKind = ChatItem['kind']
+
 // Mensagens enviadas pelo servidor em tempo real (WebSocket).
 export type RealtimeMessage =
   | { type: 'presence'; userIds: number[] }
@@ -125,3 +187,5 @@ export type RealtimeMessage =
   | { type: 'task_event'; event: TaskEvent }
   | { type: 'user'; user: User }
   | { type: 'session'; session: AgentSession }
+  | { type: 'chat'; chat: Chat }
+  | { type: 'chat_item'; item: ChatItem }

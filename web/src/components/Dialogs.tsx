@@ -49,7 +49,8 @@ export function ProjectForm({ onCreated }: { onCreated?: () => void }) {
     setBusy(true)
     try {
       const { project } = await api.createProject({ name, repoUrl, defaultBranch: defaultBranch || undefined })
-      upsertProject(project)
+      // O aviso em tempo real pode chegar antes desta resposta e já trazer o estado mais novo.
+      if (!useHarpia.getState().projects.some((item) => item.id === project.id)) upsertProject(project)
       selectProject(project.id)
       onCreated?.()
     } catch (err) {

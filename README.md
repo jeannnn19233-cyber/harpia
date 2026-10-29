@@ -7,16 +7,17 @@ Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio age
 
 - Login com convites, projetos ligados a repositórios git e quadro de tasks em tempo real
   (Backlog, Em andamento, Revisão, Feito), com participantes, histórico completo e comentários.
-- Dentro de cada task, cada pessoa abre o próprio Claude Code, Codex ou terminal, na própria
-  cópia do código. A equipe assiste aos terminais ao vivo. Cada pessoa conecta a própria conta de
-  IA em **Minhas IAs**.
+- Dentro de cada task, cada pessoa conversa com o próprio Claude ou Codex num chat (como no
+  Orca), na própria cópia do código e na própria branch. O agente pede aprovação antes de agir,
+  e a equipe acompanha todas as conversas ao vivo. Embaixo do chat fica o terminal de cada um.
+- Cada pessoa conecta a própria assinatura do Claude e do Codex em **Minhas IAs**.
 
 O plano das próximas fases está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
 ![Quadro de tasks](docs/assets/quadro.png)
 ![Task com duas pessoas, histórico e comentários](docs/assets/task.png)
-![Agentes da equipe dentro da task](docs/assets/task-agentes.png)
-![Terminal da Ana visto ao vivo pelo Bruno, em modo leitura](docs/assets/terminal-ao-vivo.png)
+![Chat com o Claude pedindo aprovação, com o terminal embaixo](docs/assets/chat-aprovacao.png)
+![Conversas da equipe na mesma task](docs/assets/chat-equipe.png)
 
 ## Rodar no seu computador
 

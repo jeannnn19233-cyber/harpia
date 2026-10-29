@@ -7,12 +7,12 @@ import {
   type TaskEvent,
   type TaskStatus,
   type User
-} from '../../../shared/types.ts'
-import { api } from '../lib/api.ts'
-import { fullDate, timeAgo } from '../lib/format.ts'
-import { useHarpia } from '../lib/store.ts'
-import { AgentsSection } from './Agents.tsx'
-import { Avatar } from './Avatar.tsx'
+} from '../../../../shared/types.ts'
+import { CHAT_PROVIDER_LABELS, type ChatProvider } from '../../../../shared/types.ts'
+import { api } from '../../lib/api.ts'
+import { fullDate, timeAgo } from '../../lib/format.ts'
+import { useHarpia } from '../../lib/store.ts'
+import { Avatar } from '../Avatar.tsx'
 
 function describe(event: TaskEvent, users: Record<number, User>): string {
   const name = (id: unknown) => (typeof id === 'number' ? (users[id]?.name ?? 'alguém') : 'ninguém')
@@ -38,6 +38,8 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
       return 'saiu da task'
     case 'comment':
       return 'comentou'
+    case 'chat_started':
+      return `abriu uma conversa com o ${CHAT_PROVIDER_LABELS[event.data.provider as ChatProvider] ?? 'agente'}`
     case 'agent_started':
       return `abriu ${AGENT_LABELS[event.data.kind as AgentSession['kind']] ?? 'um agente'}`
     case 'agent_stopped': {
@@ -90,29 +92,17 @@ function Timeline({ taskId }: { taskId: number }) {
   )
 }
 
-export function TaskPanel({ taskId }: { taskId: number }) {
+// Coluna da direita: dados da task, equipe e histórico (com os comentários da equipe).
+export function TaskSidebar({ taskId }: { taskId: number }) {
   const task = useHarpia((state) => state.tasks[taskId])
-  const { me, users, online, openTask, upsertTask, setEvents } = useHarpia()
-  const [title, setTitle] = useState('')
+  const { me, users, online, upsertTask } = useHarpia()
   const [description, setDescription] = useState('')
   const [comment, setComment] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api
-      .task(taskId)
-      .then((detail) => {
-        upsertTask(detail.task)
-        setEvents(taskId, detail.events)
-      })
-      .catch((err: Error) => setError(err.message))
-  }, [taskId, upsertTask, setEvents])
-
-  useEffect(() => {
-    if (!task) return
-    setTitle(task.title)
-    setDescription(task.description)
-  }, [task?.title, task?.description])
+    if (task) setDescription(task.description)
+  }, [task?.description])
 
   if (!task || !me) return null
 
@@ -140,28 +130,13 @@ export function TaskPanel({ taskId }: { taskId: number }) {
   const teamList = Object.values(users).sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-20 flex w-full max-w-xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
-      <header className="flex items-center gap-3 border-b border-zinc-800 px-5 py-3">
-        <span className="font-mono text-sm text-zinc-500">T-{task.number}</span>
-        <span className="text-xs text-zinc-500">criada {timeAgo(task.createdAt)}</span>
-        <button onClick={() => openTask(null)} className="btn-ghost ml-auto px-2 py-1" aria-label="Fechar">
-          ✕
-        </button>
-      </header>
-
-      <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
-        <input
-          className="w-full bg-transparent text-xl font-semibold outline-none"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => title.trim() && title !== task.title && run(() => api.updateTask(task.id, { title }))}
-        />
-
-        <div className="grid grid-cols-2 gap-3">
+    <aside className="flex min-h-0 flex-col border-l border-zinc-800 bg-zinc-950">
+      <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+        <div className="grid grid-cols-1 gap-2">
           <label className="block">
             <span className="mb-1 block text-xs text-zinc-400">Status</span>
             <select
-              className="input"
+              className="input py-1.5"
               value={task.status}
               onChange={(e) => run(() => api.updateTask(task.id, { status: e.target.value as TaskStatus }))}
             >
@@ -175,7 +150,7 @@ export function TaskPanel({ taskId }: { taskId: number }) {
           <label className="block">
             <span className="mb-1 block text-xs text-zinc-400">Responsável</span>
             <select
-              className="input"
+              className="input py-1.5"
               value={task.ownerId ?? ''}
               onChange={(e) =>
                 run(() => api.updateTask(task.id, { ownerId: e.target.value ? Number(e.target.value) : null }))
@@ -209,7 +184,7 @@ export function TaskPanel({ taskId }: { taskId: number }) {
           {task.participantIds.length === 0 ? (
             <p className="text-sm text-zinc-500">Ninguém ainda.</p>
           ) : (
-            <ul className="flex flex-wrap gap-3">
+            <ul className="space-y-1.5">
               {task.participantIds.map((id) => (
                 <li key={id} className="flex items-center gap-2 text-sm">
                   <Avatar user={users[id]} size="sm" online={online.includes(id)} />
@@ -221,12 +196,10 @@ export function TaskPanel({ taskId }: { taskId: number }) {
           )}
         </section>
 
-        <AgentsSection taskId={task.id} taskDone={task.status === 'done'} />
-
         <section>
           <h3 className="mb-2 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Descrição</h3>
           <textarea
-            className="input min-h-28 resize-y"
+            className="input min-h-24 resize-y"
             placeholder="Contexto, critérios de pronto, links…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -235,15 +208,15 @@ export function TaskPanel({ taskId }: { taskId: number }) {
         </section>
 
         <section>
-          <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Histórico</h3>
+          <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Histórico da equipe</h3>
           <Timeline taskId={task.id} />
         </section>
       </div>
 
-      {error && <div className="border-t border-rose-900 bg-rose-950 px-5 py-2 text-sm text-rose-300">{error}</div>}
-      <form onSubmit={sendComment} className="flex gap-2 border-t border-zinc-800 px-5 py-3">
+      {error && <div className="border-t border-rose-900 bg-rose-950 px-4 py-2 text-sm text-rose-300">{error}</div>}
+      <form onSubmit={sendComment} className="flex gap-2 border-t border-zinc-800 px-4 py-3">
         <textarea
-          className="input max-h-40 min-h-10 flex-1 resize-none"
+          className="input max-h-32 min-h-10 flex-1 resize-none"
           rows={1}
           placeholder="Escreva para a equipe…"
           value={comment}
@@ -255,7 +228,7 @@ export function TaskPanel({ taskId }: { taskId: number }) {
             }
           }}
         />
-        <button className="btn-primary" disabled={!comment.trim()}>
+        <button className="btn-outline" disabled={!comment.trim()}>
           Enviar
         </button>
       </form>

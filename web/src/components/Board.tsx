@@ -24,10 +24,12 @@ function positionBefore(column: Task[], targetId: number | null, movingId: numbe
 }
 
 function TaskCard({ task, onDragStart }: { task: Task; onDragStart: (event: DragEvent, task: Task) => void }) {
-  const { users, online, openTask, sessions } = useHarpia()
-  const agentsRunning = Object.values(sessions).filter(
-    (session) => session.taskId === task.id && session.status === 'running'
-  ).length
+  const { users, online, openTask, chats } = useHarpia()
+  // Conversas com agentes nesta task: quem está trabalhando ou esperando aprovação.
+  const busyChats = Object.values(chats).filter(
+    (chat) => chat.taskId === task.id && (chat.status === 'working' || chat.status === 'waiting')
+  )
+  const waiting = busyChats.some((chat) => chat.status === 'waiting')
   const owner = task.ownerId ? users[task.ownerId] : undefined
   const helpers = task.participantIds.filter((id) => id !== task.ownerId)
 
@@ -56,10 +58,13 @@ function TaskCard({ task, onDragStart }: { task: Task; onDragStart: (event: Drag
             ) : (
               <span className="text-xs text-zinc-500">Sem responsável</span>
             ))}
-          {agentsRunning > 0 && (
-            <span className="ml-2 flex items-center gap-1 text-xs text-emerald-400" title="Agentes rodando agora">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-              {agentsRunning} {agentsRunning === 1 ? 'agente' : 'agentes'}
+          {busyChats.length > 0 && (
+            <span
+              className={`ml-2 flex items-center gap-1 text-xs ${waiting ? 'text-amber-400' : 'text-sky-400'}`}
+              title={busyChats.map((chat) => `${users[chat.userId]?.name ?? '?'}: ${chat.status === 'waiting' ? 'esperando aprovação' : 'trabalhando'}`).join('\n')}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${waiting ? 'bg-amber-400' : 'animate-pulse bg-sky-400'}`} />
+              {waiting ? 'esperando aprovação' : `${busyChats.length} ${busyChats.length === 1 ? 'agente trabalhando' : 'agentes trabalhando'}`}
             </span>
           )}
         </div>

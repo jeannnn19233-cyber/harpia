@@ -1,3 +1,4 @@
+import type { ChildProcess } from 'node:child_process'
 import type { AgentAccounts, Project, Task, User } from '../../../shared/types.ts'
 
 // Terminal ligado a uma sessão do tmux, visto por uma pessoa no navegador.
@@ -27,6 +28,9 @@ export interface AgentSystem {
   stopSession(user: User, name: string): Promise<void>
   attach(input: { user: User; name: string; readOnly: boolean; cols: number; rows: number }): TerminalHandle
   accounts(user: User): Promise<AgentAccounts>
+  // Roda um programa como o usuário da pessoa, com entrada e saída ligadas ao servidor
+  // (usado pelos chats). env acrescenta variáveis ao ambiente limpo da pessoa.
+  spawnPiped(input: { user: User; command: string; args: string[]; cwd: string; env?: Record<string, string> }): ChildProcess
 }
 
 // Comando que cada tipo de sessão abre. Ao sair do agente, a pessoa cai num shell no mesmo lugar.

@@ -61,6 +61,13 @@ export function countRunningForUser(db: Db, userId: number): number {
   return row.total
 }
 
+export function findRunningTaskSession(db: Db, taskId: number, userId: number, kind: AgentKind): StoredSession | null {
+  const row = db
+    .prepare("SELECT * FROM agent_sessions WHERE task_id = ? AND user_id = ? AND kind = ? AND status = 'running' ORDER BY id DESC")
+    .get(taskId, userId, kind) as SessionRow | undefined
+  return row ? toSession(row) : null
+}
+
 export function findRunningAccountSession(db: Db, userId: number): StoredSession | null {
   const row = db
     .prepare("SELECT * FROM agent_sessions WHERE user_id = ? AND kind = 'account' AND status = 'running' ORDER BY id DESC")

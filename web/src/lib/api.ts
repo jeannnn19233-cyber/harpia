@@ -3,7 +3,11 @@ import type {
   AgentKind,
   AgentSession,
   AgentsStatus,
+  Chat,
+  ChatItem,
+  ChatProvider,
   Invite,
+  PermissionMode,
   Project,
   Task,
   TaskDetail,
@@ -71,5 +75,19 @@ export const api = {
   taskSessions: (taskId: number) => request<{ sessions: AgentSession[] }>('GET', `/api/tasks/${taskId}/sessions`),
   startSession: (taskId: number, kind: AgentKind) =>
     request<{ session: AgentSession }>('POST', `/api/tasks/${taskId}/sessions`, { kind }),
-  stopSession: (id: number) => request<{ session: AgentSession }>('POST', `/api/sessions/${id}/stop`, {})
+  stopSession: (id: number) => request<{ session: AgentSession }>('POST', `/api/sessions/${id}/stop`, {}),
+  openTaskTerminal: (taskId: number) => request<{ session: AgentSession }>('POST', `/api/tasks/${taskId}/terminal`, {}),
+
+  activeChats: () => request<{ chats: Chat[] }>('GET', '/api/chats/active'),
+  taskChats: (taskId: number) => request<{ chats: Chat[] }>('GET', `/api/tasks/${taskId}/chats`),
+  createChat: (taskId: number, provider: ChatProvider, permissionMode: PermissionMode) =>
+    request<{ chat: Chat }>('POST', `/api/tasks/${taskId}/chats`, { provider, permissionMode }),
+  chat: (id: number) => request<{ chat: Chat; items: ChatItem[] }>('GET', `/api/chats/${id}`),
+  sendMessage: (id: number, text: string) => request<{ ok: true }>('POST', `/api/chats/${id}/messages`, { text }),
+  interruptChat: (id: number) => request<{ ok: true }>('POST', `/api/chats/${id}/interrupt`, {}),
+  decide: (id: number, itemId: number, decision: 'allow' | 'deny') =>
+    request<{ item: ChatItem }>('POST', `/api/chats/${id}/approvals/${itemId}`, { decision }),
+  setPermissionMode: (id: number, permissionMode: PermissionMode) =>
+    request<{ chat: Chat }>('PATCH', `/api/chats/${id}`, { permissionMode }),
+  closeChat: (id: number) => request<{ chat: Chat }>('POST', `/api/chats/${id}/close`, {})
 }

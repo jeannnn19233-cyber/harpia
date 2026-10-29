@@ -1,27 +1,33 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { AGENT_KINDS, type TaskEvent } from '../../../shared/types.ts'
+import { AGENT_KINDS, type AgentKind, type Task, type TaskEvent, type User } from '../../../shared/types.ts'
 import { requireUser } from '../auth/guard.ts'
 import { getUser } from '../auth/users.ts'
 import type { AppContext } from '../context.ts'
 import { transaction } from '../db/index.ts'
 import { HttpError, parse, parseId } from '../http/errors.ts'
-import { projectPath } from '../projects/routes.ts'
-import { getProject } from '../projects/store.ts'
-import { addParticipant, endOfColumn, getTask, insertEvent, updateTaskRow } from '../tasks/store.ts'
+import { getTask, insertEvent } from '../tasks/store.ts'
 import {
   countRunningForUser,
   findRunningAccountSession,
+  findRunningTaskSession,
   getSession,
   insertSession,
   listRunningSessions,
   listTaskSessions,
   markExited,
   publicSession,
-  saveWorktree,
   type StoredSession
 } from './store.ts'
 import { AGENT_COMMANDS, sessionName } from './system.ts'
+import {
+  agentsDisabledReason,
+  ensureAgentsEnabled,
+  ensureTaskOpen,
+  joinTaskForWork,
+  prepareTaskWorkspace,
+  publishTaskChange
+} from './workspace.ts'
 
 const startSchema = z.object({ kind: z.enum(AGENT_KINDS) })
 
@@ -34,27 +40,14 @@ const clientMessageSchema = z.discriminatedUnion('type', [
 const MONITOR_INTERVAL_MS = 15000
 
 export function registerAgentRoutes(app: FastifyInstance, ctx: AppContext): void {
-  function disabledReason(): string | null {
-    if (!ctx.config.terminalsEnabled) {
-      return 'Os terminais estão desligados. Um administrador liga com HARPIA_TERMINALS=on (veja docs/COOLIFY.md).'
-    }
-    return ctx.agents.unavailableReason()
-  }
-
-  function ensureEnabled(): void {
-    const reason = disabledReason()
-    if (reason) throw new HttpError(503, reason)
-  }
+  const disabledReason = () => agentsDisabledReason(ctx)
+  const ensureEnabled = () => ensureAgentsEnabled(ctx)
 
   function publishSession(session: StoredSession): void {
     ctx.hub.broadcast({ type: 'session', session: publicSession(session) })
   }
 
-  function publishTask(taskId: number, events: TaskEvent[]): void {
-    const task = getTask(ctx.db, taskId)
-    if (task) ctx.hub.broadcast({ type: 'task', task })
-    for (const event of events) ctx.hub.broadcast({ type: 'task_event', event })
-  }
+  const publishTask = (taskId: number, events: TaskEvent[]) => publishTaskChange(ctx, taskId, events)
 
   // Marca a sessão como encerrada, registra na task e avisa a equipe.
   function finishSession(session: StoredSession, actorId: number | null, reason: 'stopped' | 'ended'): void {
@@ -151,38 +144,37 @@ export function registerAgentRoutes(app: FastifyInstance, ctx: AppContext): void
     return { sessions: listTaskSessions(ctx.db, taskId).map(publicSession) }
   })
 
+  // Terminal da pessoa na task (o painel de baixo): reaproveita o que já estiver aberto.
+  app.post('/api/tasks/:id/terminal', async (request) => {
+    const user = requireUser(request)
+    const task = getTask(ctx.db, parseId((request.params as { id: string }).id))
+    if (!task) throw new HttpError(404, 'Task não encontrada.')
+    ensureEnabled()
+    const existing = findRunningTaskSession(ctx.db, task.id, user.id, 'shell')
+    if (existing) {
+      if (await ctx.agents.isRunning(user, sessionName(existing.id))) return { session: publicSession(existing) }
+      finishSession(existing, null, 'ended')
+    }
+    // O terminal de apoio é pessoal: não coloca a pessoa na task nem entra no histórico.
+    return { session: await openSession(task, user, 'shell', { quiet: true }) }
+  })
+
   app.post('/api/tasks/:id/sessions', async (request) => {
     const user = requireUser(request)
     const task = getTask(ctx.db, parseId((request.params as { id: string }).id))
     if (!task) throw new HttpError(404, 'Task não encontrada.')
     const { kind } = parse(startSchema, request.body)
+    return { session: await openSession(task, user, kind) }
+  })
+
+  async function openSession(task: Task, user: User, kind: AgentKind, options: { quiet?: boolean } = {}) {
     ensureEnabled()
-    if (task.status === 'done') throw new HttpError(409, 'A task já foi concluída. Reabra a task para trabalhar nela.')
-    const project = getProject(ctx.db, task.projectId)
-    if (!project || project.cloneStatus !== 'ready') {
-      throw new HttpError(409, 'O repositório do projeto ainda não está pronto.')
-    }
+    ensureTaskOpen(task)
     const max = ctx.config.maxSessionsPerUser
     if (countRunningForUser(ctx.db, user.id) >= max) {
       throw new HttpError(409, `Você já tem ${max} sessões abertas. Encerre uma antes de abrir outra.`)
     }
-
-    const mirrorPath = projectPath(ctx, project)
-    try {
-      await ctx.git.fetch(mirrorPath)
-    } catch (error) {
-      // Sem rede, segue com a última versão baixada.
-      app.log.warn(error, 'Não foi possível atualizar o espelho do repositório.')
-    }
-
-    let worktree: { path: string; branch: string }
-    try {
-      await ctx.agents.prepareUser(user)
-      worktree = await ctx.agents.prepareWorktree({ user, project, task, mirrorPath })
-    } catch (error) {
-      throw new HttpError(500, `Não foi possível preparar sua cópia do código: ${(error as Error).message}`)
-    }
-    saveWorktree(ctx.db, { taskId: task.id, userId: user.id, ...worktree, now: ctx.now() })
+    const worktree = await prepareTaskWorkspace(ctx, task, user, (error, message) => app.log.warn(error, message))
 
     const session = insertSession(ctx.db, {
       taskId: task.id,
@@ -199,38 +191,13 @@ export function registerAgentRoutes(app: FastifyInstance, ctx: AppContext): void
       throw new HttpError(500, `Não foi possível abrir o agente: ${(error as Error).message}`)
     }
 
-    // Quem abre um agente na task passa a participar dela. Se a task estava no Backlog,
-    // ela vai para "Em andamento" e, sem responsável, essa pessoa assume.
+    if (options.quiet) {
+      publishSession(session)
+      return publicSession(session)
+    }
     const events = transaction(ctx.db, () => {
       const now = ctx.now()
-      const list: TaskEvent[] = []
-      const current = getTask(ctx.db, task.id) ?? task
-      if (current.status === 'backlog') {
-        const ownerId = current.ownerId ?? user.id
-        updateTaskRow(
-          ctx.db,
-          task.id,
-          { status: 'in_progress', ownerId, position: endOfColumn(ctx.db, task.projectId, 'in_progress') },
-          now
-        )
-        list.push(
-          insertEvent(ctx.db, {
-            taskId: task.id,
-            actorId: user.id,
-            type: 'status_changed',
-            data: { from: 'backlog', to: 'in_progress', reason: 'agent' },
-            now
-          })
-        )
-        if (current.ownerId === null) {
-          list.push(insertEvent(ctx.db, { taskId: task.id, actorId: user.id, type: 'owner_changed', data: { from: null, to: user.id }, now }))
-        }
-      }
-      if (addParticipant(ctx.db, task.id, user.id, now)) {
-        list.push(
-          insertEvent(ctx.db, { taskId: task.id, actorId: user.id, type: 'participant_joined', data: { userId: user.id, reason: 'agent' }, now })
-        )
-      }
+      const list = joinTaskForWork(ctx, task.id, user, now)
       list.push(
         insertEvent(ctx.db, {
           taskId: task.id,
@@ -244,8 +211,8 @@ export function registerAgentRoutes(app: FastifyInstance, ctx: AppContext): void
     })
     publishSession(session)
     publishTask(task.id, events)
-    return { session: publicSession(session) }
-  })
+    return publicSession(session)
+  }
 
   app.post('/api/sessions/:id/stop', async (request) => {
     const user = requireUser(request)

@@ -103,6 +103,34 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_agent_sessions_task ON agent_sessions(task_id, id);
   CREATE INDEX idx_agent_sessions_user ON agent_sessions(user_id, status);
+  `,
+  // Conversas com os agentes (chat).
+  `
+  CREATE TABLE chats (
+    id INTEGER PRIMARY KEY,
+    task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL CHECK (provider IN ('claude', 'codex')),
+    title TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('idle', 'working', 'waiting', 'closed')),
+    permission_mode TEXT NOT NULL CHECK (permission_mode IN ('ask', 'edits', 'auto')),
+    provider_session_id TEXT,
+    branch TEXT,
+    cwd TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_chats_task ON chats(task_id, id);
+
+  CREATE TABLE chat_items (
+    id INTEGER PRIMARY KEY,
+    chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_chat_items_chat ON chat_items(chat_id, id);
   `
 ]
 

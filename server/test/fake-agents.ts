@@ -1,3 +1,4 @@
+import type { ChildProcess } from 'node:child_process'
 import type { AgentAccounts, Project, Task, User } from '../../shared/types.ts'
 import type { AgentSystem, TerminalHandle } from '../src/agents/system.ts'
 
@@ -58,6 +59,10 @@ export class FakeAgentSystem implements AgentSystem {
       resize: () => undefined,
       kill: () => undefined
     }
+  }
+
+  spawnPiped(): ChildProcess {
+    throw new Error('Os testes usam provedores de chat falsos.')
   }
 
   async accounts(user: User): Promise<AgentAccounts> {
