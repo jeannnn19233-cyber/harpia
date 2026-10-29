@@ -1,12 +1,14 @@
-import { CHAT_PROVIDER_LABELS, type ChatItem, type PermissionMode, type User } from '../../../shared/types.ts'
+import { CHAT_PROVIDER_LABELS, type ChatItem, type ChatModel, type ChatProvider, type PermissionMode, type User } from '../../../shared/types.ts'
 import { getUser } from '../auth/users.ts'
 import { getMemory } from '../memory/store.ts'
 import { getProject } from '../projects/store.ts'
 import { getTask } from '../tasks/store.ts'
 import type { AppContext } from '../context.ts'
 import { HttpError } from '../http/errors.ts'
-import type { ProviderAdapter, ProviderFactory, ProviderHooks } from './providers/types.ts'
+import type { ModelLister, ProviderAdapter, ProviderFactory, ProviderHooks } from './providers/types.ts'
 import {
+  canSeeChat,
+  deleteChat,
   getChat,
   getItem,
   insertItem,
@@ -33,16 +35,21 @@ interface Runtime {
 // Conversas paradas por mais tempo que isso têm o processo do agente desligado para poupar
 // memória. A próxima mensagem retoma a mesma conversa.
 const IDLE_SHUTDOWN_MS = 20 * 60 * 1000
+// A lista de modelos de cada conta muda pouco; perguntar de novo só depois disso.
+const MODELS_CACHE_MS = 10 * 60 * 1000
 
 export class ChatManager {
   private readonly ctx: AppContext
   private readonly factory: ProviderFactory
   private readonly runtimes = new Map<number, Runtime>()
   private readonly sweeper: ReturnType<typeof setInterval>
+  private readonly lister: ModelLister
+  private readonly modelsCache = new Map<string, { at: number; models: Promise<ChatModel[]> }>()
 
-  constructor(ctx: AppContext, factory: ProviderFactory) {
+  constructor(ctx: AppContext, factory: ProviderFactory, lister: ModelLister) {
     this.ctx = ctx
     this.factory = factory
+    this.lister = lister
     this.sweeper = setInterval(() => this.shutdownIdle(), 60 * 1000)
     this.sweeper.unref()
   }
@@ -102,6 +109,45 @@ export class ChatManager {
     await this.runtimes.get(chat.id)?.adapter.setPermissionMode(mode)
   }
 
+  async setModel(chat: StoredChat, model: string | null): Promise<void> {
+    this.publish(updateChat(this.ctx.db, chat.id, { model }, this.ctx.now()))
+    await this.runtimes.get(chat.id)?.adapter.setModel(model)
+  }
+
+  // Compartilhar mostra a conversa (só leitura) para a equipe; deixar de compartilhar a esconde de novo.
+  setShared(chat: StoredChat, shared: boolean): StoredChat | null {
+    const updated = updateChat(this.ctx.db, chat.id, { shared }, this.ctx.now())
+    this.publish(updated)
+    if (updated && !shared) {
+      this.ctx.hub.broadcastWhere({ type: 'chat_removed', chatId: chat.id }, (userId) => !canSeeChat(updated, userId))
+    }
+    return updated
+  }
+
+  rename(chat: StoredChat, title: string): StoredChat | null {
+    const updated = updateChat(this.ctx.db, chat.id, { title }, this.ctx.now())
+    this.publish(updated)
+    return updated
+  }
+
+  // Exclui a conversa do Harpia. Os arquivos que o agente criou continuam na pasta da pessoa.
+  remove(chat: StoredChat): void {
+    this.dropRuntime(chat.id)
+    deleteChat(this.ctx.db, chat.id)
+    this.ctx.hub.broadcastWhere({ type: 'chat_removed', chatId: chat.id }, (userId) => canSeeChat(chat, userId))
+  }
+
+  // Modelos que a conta da pessoa oferece. Em caso de falha, a conversa usa o padrão da conta.
+  models(provider: ChatProvider, user: User): Promise<ChatModel[]> {
+    const key = `${user.id}:${provider}`
+    const cached = this.modelsCache.get(key)
+    if (cached && Date.now() - cached.at < MODELS_CACHE_MS) return cached.models
+    const models = this.lister({ provider, user, cwd: this.ctx.agents.homeDir(user) })
+    this.modelsCache.set(key, { at: Date.now(), models })
+    models.catch(() => this.modelsCache.delete(key))
+    return models
+  }
+
   decide(chat: StoredChat, itemId: number, decision: 'allow' | 'deny', user: User): ChatItem {
     const item = getItem(this.ctx.db, itemId)
     if (!item || item.chatId !== chat.id || item.kind !== 'approval') throw new HttpError(404, 'Pedido de aprovação não encontrado.')
@@ -159,7 +205,13 @@ export class ChatManager {
 
   // O que o agente precisa saber ao começar: a task, a branch e a memória do projeto.
   instructionsFor(chat: StoredChat): string | null {
-    const task = chat.taskId ? getTask(this.ctx.db, chat.taskId) : null
+    if (chat.taskId === null) {
+      return (
+        'Você está numa conversa pelo Harpia, o workspace da equipe, fora de qualquer task. ' +
+        'A pasta atual é só desta conversa: use-a para arquivos de rascunho. Responda em português do Brasil, a menos que a pessoa escreva em outra língua.'
+      )
+    }
+    const task = getTask(this.ctx.db, chat.taskId)
     if (!task) return null
     const project = getProject(this.ctx.db, task.projectId)
     const memory = getMemory(this.ctx.db, task.projectId)
@@ -179,7 +231,7 @@ export class ChatManager {
     const chat = getChat(this.ctx.db, chatId)
     if (!chat) return
     const task = chat.taskId ? getTask(this.ctx.db, chat.taskId) : null
-    const where = task ? `T-${task.number} "${task.title}"` : 'uma conversa'
+    const where = task ? `T-${task.number} "${task.title}"` : `"${chat.title}"`
     void this.ctx.notifier.notifyUsers([chat.userId], text(where, CHAT_PROVIDER_LABELS[chat.provider]) + this.ctx.notifier.link('/'), {
       onlyOffline: true
     })
@@ -203,6 +255,7 @@ export class ChatManager {
       cwd: chat.cwd,
       resumeId: chat.providerSessionId,
       permissionMode: chat.permissionMode,
+      model: chat.model,
       instructions: this.instructionsFor(chat),
       hooks: this.hooksFor(chat.id, runtime)
     })
@@ -333,19 +386,25 @@ export class ChatManager {
     this.publish(updateChat(this.ctx.db, chatId, { status }, this.ctx.now()))
   }
 
-  private publish(chat: StoredChat | null): void {
-    if (chat) this.ctx.hub.broadcast({ type: 'chat', chat: publicChat(chat) })
+  // Conversas privadas só vão para a dona; as de task e as compartilhadas, para todos.
+  publish(chat: StoredChat | null): void {
+    if (chat) this.ctx.hub.broadcastWhere({ type: 'chat', chat: publicChat(chat) }, (userId) => canSeeChat(chat, userId))
+  }
+
+  private publishItem(item: ChatItem): void {
+    const chat = getChat(this.ctx.db, item.chatId)
+    if (chat) this.ctx.hub.broadcastWhere({ type: 'chat_item', item }, (userId) => canSeeChat(chat, userId))
   }
 
   private addItem(chatId: number, data: ChatItemData): ChatItem {
     const item = insertItem(this.ctx.db, chatId, data, this.ctx.now())
-    this.ctx.hub.broadcast({ type: 'chat_item', item })
+    this.publishItem(item)
     return item
   }
 
   private updateItem(itemId: number, data: ChatItemData): ChatItem | null {
     const item = updateItem(this.ctx.db, itemId, data, this.ctx.now())
-    if (item) this.ctx.hub.broadcast({ type: 'chat_item', item })
+    if (item) this.publishItem(item)
     return item
   }
 }

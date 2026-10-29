@@ -30,6 +30,14 @@ export class FakeAgentSystem implements AgentSystem {
     return `/fake/${user.id}`
   }
 
+  readonly folders: string[] = []
+  async prepareFolder(user: User, relativePath: string): Promise<string> {
+    this.preparedUsers.add(user.id)
+    const path = `/fake/${user.id}/${relativePath}`
+    this.folders.push(path)
+    return path
+  }
+
   async startSession(input: { user: User; name: string; cwd: string; command: string | null }): Promise<void> {
     this.running.set(input.name, { user: input.user.id, cwd: input.cwd, command: input.command })
   }

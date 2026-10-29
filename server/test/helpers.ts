@@ -5,7 +5,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { buildApp } from '../src/app.ts'
 import type { AppContext } from '../src/context.ts'
 import type { AgentSystem } from '../src/agents/system.ts'
-import type { ProviderFactory } from '../src/chat/providers/types.ts'
+import type { ModelLister, ProviderFactory } from '../src/chat/providers/types.ts'
 import type { GitHubClient } from '../src/github/client.ts'
 import type { TelegramClient } from '../src/notify/telegram.ts'
 import type { GitRunner } from '../src/projects/git.ts'
@@ -49,6 +49,7 @@ export async function startServer(
     git?: GitRunner
     agents?: AgentSystem
     chatProviders?: ProviderFactory
+    chatModels?: ModelLister
     github?: GitHubClient
     telegram?: TelegramClient
     now?: () => Date
@@ -81,6 +82,7 @@ export async function startServer(
     github: options.github ?? offlineGitHub,
     git: options.git ?? fakeGit,
     agents: options.agents ?? new FakeAgentSystem(),
+    chatModels: options.chatModels,
     chatProviders: options.chatProviders ?? (() => {
       throw new Error('Este teste não configurou provedores de chat.')
     })

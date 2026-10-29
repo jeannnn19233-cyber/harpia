@@ -9,6 +9,18 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   const message = JSON.parse(line)
   if (message.method === 'initialize') return send({ id: message.id, result: { userAgent: 'fake' } })
   if (message.method === 'initialized') return
+  if (message.method === 'model/list') {
+    return send({
+      id: message.id,
+      result: {
+        data: [
+          { id: 'a', model: 'gpt-codex', displayName: 'GPT Codex', description: 'Para programar', isDefault: true },
+          { id: 'b', model: 'gpt-mini', displayName: '', description: 'Rápido', isDefault: false }
+        ],
+        nextCursor: null
+      }
+    })
+  }
   if (message.method === 'thread/start') {
     if (message.params.cwd !== process.env.EXPECTED_CWD) return send({ id: message.id, error: { message: `cwd errado: ${message.params.cwd}` } })
     if (message.params.developerInstructions !== 'Task T-1') return send({ id: message.id, error: { message: 'sem contexto da task' } })
@@ -19,6 +31,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     send({ id: message.id, result: { turn: { id: 'turn-1' } } })
     const text = message.params.input[0].text
     notify('turn/started', { threadId: message.params.threadId, turn: { id: 'turn-1' } })
+    if (message.params.model) notify('item/agentMessage/delta', { itemId: 'modelo', delta: `modelo ${message.params.model}` })
     notify('error', { error: { message: 'Reconnecting... 2/5' }, willRetry: true })
     notify('item/started', { item: { type: 'agentMessage', id: 'msg-1', text: '' } })
     notify('item/agentMessage/delta', { itemId: 'msg-1', delta: 'Rodando ' })

@@ -1,4 +1,3 @@
-import type { ChildProcess } from 'node:child_process'
 import {
   query,
   type CanUseTool,
@@ -8,8 +7,8 @@ import {
   type SDKUserMessage,
   type SpawnedProcess
 } from '@anthropic-ai/claude-agent-sdk'
-import type { PermissionMode } from '../../../../shared/types.ts'
-import { truncate, type ProviderAdapter, type ProviderHooks, type ProviderInput } from './types.ts'
+import type { ChatModel, PermissionMode } from '../../../../shared/types.ts'
+import { truncate, type ProviderAdapter, type ProviderHooks, type ProviderInput, type SpawnAsUser } from './types.ts'
 
 // O Claude Code instalado na imagem. Ele usa o login que a pessoa fez em "Minhas IAs".
 const CLAUDE_BIN = process.env.HARPIA_CLAUDE_BIN ?? '/usr/local/bin/claude'
@@ -201,8 +200,6 @@ export class ClaudeMessageMapper {
   }
 }
 
-type SpawnAsUser = (input: { command: string; args: string[]; cwd: string; env: Record<string, string> }) => ChildProcess
-
 // Variáveis que o SDK precisa passar ao Claude Code. O resto do ambiente do servidor fica de fora.
 function claudeEnv(env: Record<string, string | undefined>): Record<string, string> {
   const result: Record<string, string> = {}
@@ -210,6 +207,30 @@ function claudeEnv(env: Record<string, string | undefined>): Record<string, stri
     if (value !== undefined && (key.startsWith('CLAUDE_CODE_') || key.startsWith('CLAUDE_AGENT_SDK'))) result[key] = value
   }
   return result
+}
+
+function spawner(spawnAsUser: SpawnAsUser, cwd: string) {
+  // Com entrada e saída em pipe, stdin e stdout sempre existem.
+  return (options: { command: string; args: string[]; cwd?: string; env: Record<string, string | undefined> }) =>
+    spawnAsUser({ command: options.command, args: options.args, cwd: options.cwd ?? cwd, env: claudeEnv(options.env) }) as unknown as SpawnedProcess
+}
+
+// Pergunta ao Claude Code da pessoa quais modelos a conta dela oferece. Não gasta tokens.
+export async function listClaudeModels(spawnAsUser: SpawnAsUser, cwd: string): Promise<ChatModel[]> {
+  const queue = new MessageQueue()
+  const session = query({
+    prompt: queue,
+    options: { cwd, pathToClaudeCodeExecutable: CLAUDE_BIN, settingSources: ['user'], spawnClaudeCodeProcess: spawner(spawnAsUser, cwd) }
+  })
+  try {
+    const models = await session.supportedModels()
+    return models
+      .filter((model) => model.value !== 'default')
+      .map((model) => ({ id: model.value, label: model.displayName, description: model.description }))
+  } finally {
+    queue.close()
+    session.close()
+  }
 }
 
 export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsUser): ProviderAdapter {
@@ -236,6 +257,7 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
       options: {
         cwd: input.cwd,
         resume: input.resumeId ?? undefined,
+        model: input.model ?? undefined,
         includePartialMessages: true,
         // Depois de cada vez, o Claude sugere a próxima mensagem (quase grátis: usa o cache da conversa).
         promptSuggestions: true,
@@ -249,13 +271,7 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
         settingSources: ['user', 'project', 'local'],
         pathToClaudeCodeExecutable: CLAUDE_BIN,
         // Com entrada e saída em pipe, stdin e stdout sempre existem.
-        spawnClaudeCodeProcess: (options) =>
-          spawnAsUser({
-            command: options.command,
-            args: options.args,
-            cwd: options.cwd ?? input.cwd,
-            env: claudeEnv(options.env)
-          }) as unknown as SpawnedProcess
+        spawnClaudeCodeProcess: spawner(spawnAsUser, input.cwd)
       }
     })
     const current = running
@@ -285,6 +301,10 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
     async setPermissionMode(mode) {
       input.permissionMode = mode
       await running?.setPermissionMode(SDK_MODES[mode])
+    },
+    async setModel(model) {
+      input.model = model
+      await running?.setModel(model ?? undefined)
     },
     close() {
       closed = true

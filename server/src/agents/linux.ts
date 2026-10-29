@@ -137,6 +137,14 @@ export class LinuxAgentSystem implements AgentSystem {
     await this.asUser(user, ['git', 'config', '--global', 'user.email', user.email])
   }
 
+  async prepareFolder(user: User, relativePath: string): Promise<string> {
+    if (relativePath.split('/').some((part) => part === '..' || part === '')) throw new Error('Caminho inválido.')
+    await this.prepareUser(user)
+    const path = join(this.homeDir(user), relativePath)
+    await this.asUser(user, ['mkdir', '-p', path])
+    return path
+  }
+
   // O espelho pertence ao servidor; o git só deixa outro usuário clonar se ele estiver marcado como seguro.
   private async markSafe(repoPath: string): Promise<void> {
     let current: string[] = []

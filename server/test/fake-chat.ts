@@ -9,10 +9,12 @@ export class FakeProvider implements ProviderAdapter {
   interrupted = 0
   closed = false
   mode: PermissionMode
+  model: string | null
 
   constructor(input: ProviderInput) {
     this.input = input
     this.mode = input.permissionMode
+    this.model = input.model
   }
 
   get hooks(): ProviderHooks {
@@ -33,6 +35,10 @@ export class FakeProvider implements ProviderAdapter {
 
   async setPermissionMode(mode: PermissionMode): Promise<void> {
     this.mode = mode
+  }
+
+  async setModel(model: string | null): Promise<void> {
+    this.model = model
   }
 
   close(): void {

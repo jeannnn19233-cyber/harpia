@@ -46,6 +46,7 @@ const scripted: ProviderFactory = (input) => {
       input.hooks.onTurnEnd('Interrompido.')
     },
     async setPermissionMode() {},
+    async setModel() {},
     close() {}
   }
 }
@@ -99,6 +100,13 @@ const { app } = await buildApp({
     sendMessage: async () => {}
   },
   chatProviders: scripted,
+  chatModels: async ({ provider }) =>
+    provider === 'claude'
+      ? [
+          { id: 'opus', label: 'Opus', description: 'O mais capaz' },
+          { id: 'sonnet', label: 'Sonnet', description: 'Equilibrado' }
+        ]
+      : [{ id: 'gpt-codex', label: 'GPT Codex', description: 'Para programar' }],
   git: fakeGit
 })
 await app.listen({ host: '127.0.0.1', port: Number(process.env.PORT ?? 7421) })

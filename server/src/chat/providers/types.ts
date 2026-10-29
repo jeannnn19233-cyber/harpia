@@ -1,4 +1,5 @@
-import type { ChatProvider, PermissionMode, User } from '../../../../shared/types.ts'
+import type { ChildProcess } from 'node:child_process'
+import type { ChatModel, ChatProvider, PermissionMode, User } from '../../../../shared/types.ts'
 
 // O que o provedor (Claude ou Codex) avisa enquanto trabalha. "key" identifica cada
 // bloco (um texto, uma ferramenta) para atualizar o mesmo item na conversa.
@@ -25,6 +26,8 @@ export interface ProviderAdapter {
   steer(text: string): Promise<void>
   interrupt(): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
+  // Troca o modelo da conversa (null volta ao padrão da conta). Vale a partir da próxima mensagem.
+  setModel(model: string | null): Promise<void>
   close(): void
 }
 
@@ -34,12 +37,18 @@ export interface ProviderInput {
   cwd: string
   resumeId: string | null
   permissionMode: PermissionMode
+  model: string | null
   // Contexto que o agente recebe ao começar: a task, a branch e a memória do projeto.
   instructions: string | null
   hooks: ProviderHooks
 }
 
 export type ProviderFactory = (input: ProviderInput) => ProviderAdapter
+
+// Modelos que a conta da pessoa oferece em cada provedor (perguntado ao próprio Claude Code ou Codex).
+export type ModelLister = (input: { provider: ChatProvider; user: User; cwd: string }) => Promise<ChatModel[]>
+
+export type SpawnAsUser = (input: { command: string; args: string[]; cwd: string; env: Record<string, string> }) => ChildProcess
 
 // Saídas longas de comandos são cortadas para não pesar a conversa.
 export function truncate(text: string, max = 4000): string {

@@ -9,6 +9,7 @@ import {
 import { api } from '../../lib/api.ts'
 import { useHarpia } from '../../lib/store.ts'
 import { Avatar } from '../Avatar.tsx'
+import { ModelSelect } from './ModelSelect.tsx'
 import { RichText } from './RichText.tsx'
 
 function ToolCard({ item }: { item: Extract<ChatItem, { kind: 'tool' }> }) {
@@ -106,6 +107,8 @@ export function ChatView({ chatId }: { chatId: number }) {
 
   if (!chat || !me) return null
   const mine = chat.userId === me.id
+  // Conversa fora das tasks (fase 2): privada ou compartilhada, sem branch.
+  const general = chat.taskId === null
   const busy = chat.status === 'working' || chat.status === 'waiting'
   const owner = users[chat.userId]
 
@@ -145,9 +148,21 @@ export function ChatView({ chatId }: { chatId: number }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{chat.title}</p>
           <p className="truncate text-xs text-zinc-500">
-            {owner?.name} · {CHAT_PROVIDER_LABELS[chat.provider]} · <span className="font-mono">{chat.branch}</span>
+            {owner?.name} · {CHAT_PROVIDER_LABELS[chat.provider]}
+            {!mine && chat.model && ` · ${chat.model}`}
+            {general ? (
+              <> · {chat.shared ? 'compartilhada com a equipe' : 'privada'}</>
+            ) : (
+              <>
+                {' '}
+                · <span className="font-mono">{chat.branch}</span>
+              </>
+            )}
           </p>
         </div>
+        {mine && chat.status !== 'closed' && (
+          <ModelSelect chat={chat} onChange={(model) => void run(async () => upsertChats([(await api.updateChat(chat.id, { model })).chat]))} />
+        )}
         {mine && chat.status !== 'closed' ? (
           <select
             className="input w-auto py-1 text-xs"
@@ -164,7 +179,30 @@ export function ChatView({ chatId }: { chatId: number }) {
         ) : (
           !mine && <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Acompanhando · só leitura</span>
         )}
-        {mine && chat.status !== 'closed' && (
+        {mine && general && (
+          <button
+            className="btn-ghost px-2 py-1 text-xs"
+            title={chat.shared ? 'A equipe deixa de ver esta conversa' : 'A equipe passa a acompanhar esta conversa, só lendo'}
+            onClick={() => void run(async () => upsertChats([(await api.updateChat(chat.id, { shared: !chat.shared })).chat]))}
+          >
+            {chat.shared ? 'Deixar privada' : 'Compartilhar'}
+          </button>
+        )}
+        {mine && general && (
+          <button
+            className="btn-ghost px-2 py-1 text-xs text-rose-300"
+            onClick={() =>
+              confirm('Excluir esta conversa? As mensagens somem do Harpia.') &&
+              run(async () => {
+                await api.deleteChat(chat.id)
+                useHarpia.getState().apply({ type: 'chat_removed', chatId: chat.id })
+              })
+            }
+          >
+            Excluir
+          </button>
+        )}
+        {mine && !general && chat.status !== 'closed' && (
           <button
             className="btn-ghost px-2 py-1 text-xs"
             onClick={() => confirm('Encerrar esta conversa?') && run(() => api.closeChat(chat.id))}
@@ -186,9 +224,11 @@ export function ChatView({ chatId }: { chatId: number }) {
           {!items && <p className="text-sm text-zinc-500">Carregando conversa…</p>}
           {items?.length === 0 && (
             <div className="py-10 text-center text-sm text-zinc-500">
-              {mine
-                ? `Escreva o que o ${CHAT_PROVIDER_LABELS[chat.provider]} deve fazer nesta task. Ele trabalha na sua cópia do código, na branch ${chat.branch}.`
-                : 'Nenhuma mensagem ainda.'}
+              {!mine
+                ? 'Nenhuma mensagem ainda.'
+                : general
+                  ? `Pergunte o que quiser ao ${CHAT_PROVIDER_LABELS[chat.provider]}. Ele usa a sua conta e trabalha numa pasta só desta conversa. Só você vê esta conversa, a menos que a compartilhe.`
+                  : `Escreva o que o ${CHAT_PROVIDER_LABELS[chat.provider]} deve fazer nesta task. Ele trabalha na sua cópia do código, na branch ${chat.branch}.`}
             </div>
           )}
           {items?.map((item) => {

@@ -11,6 +11,8 @@ interface ChatRow {
   permission_mode: PermissionMode
   provider_session_id: string | null
   suggestion: string | null
+  model: string | null
+  shared: number
   branch: string | null
   cwd: string
   created_at: string
@@ -50,6 +52,8 @@ function toChat(row: ChatRow): StoredChat {
     providerSessionId: row.provider_session_id,
     branch: row.branch,
     suggestion: row.suggestion,
+    model: row.model,
+    shared: row.shared === 1,
     cwd: row.cwd,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -91,6 +95,23 @@ export function listActiveChats(db: Db): StoredChat[] {
   return rows.map(toChat)
 }
 
+// Quem pode ver a conversa: as de task, toda a equipe; as outras, só a dona, a menos que compartilhadas.
+export function canSeeChat(chat: Chat, userId: number): boolean {
+  return chat.taskId !== null || chat.shared || chat.userId === userId
+}
+
+// Conversas fora das tasks que a pessoa pode ver: as dela e as compartilhadas pela equipe.
+export function listGeneralChats(db: Db, userId: number): StoredChat[] {
+  const rows = db
+    .prepare('SELECT * FROM chats WHERE task_id IS NULL AND (user_id = ? OR shared = 1) ORDER BY updated_at DESC, id DESC')
+    .all(userId) as unknown as ChatRow[]
+  return rows.map(toChat)
+}
+
+export function deleteChat(db: Db, id: number): void {
+  db.prepare('DELETE FROM chats WHERE id = ?').run(id)
+}
+
 export function listBusyChats(db: Db): StoredChat[] {
   const rows = db.prepare("SELECT * FROM chats WHERE status IN ('working', 'waiting')").all() as unknown as ChatRow[]
   return rows.map(toChat)
@@ -105,16 +126,17 @@ export function insertChat(
     permissionMode: PermissionMode
     branch: string | null
     cwd: string
+    model?: string | null
     now: Date
   }
 ): StoredChat {
   const now = input.now.toISOString()
   const result = db
     .prepare(
-      `INSERT INTO chats (task_id, user_id, provider, title, status, permission_mode, branch, cwd, created_at, updated_at)
-       VALUES (?, ?, ?, 'Nova conversa', 'idle', ?, ?, ?, ?, ?)`
+      `INSERT INTO chats (task_id, user_id, provider, title, status, permission_mode, branch, cwd, model, created_at, updated_at)
+       VALUES (?, ?, ?, 'Nova conversa', 'idle', ?, ?, ?, ?, ?, ?)`
     )
-    .run(input.taskId, input.userId, input.provider, input.permissionMode, input.branch, input.cwd, now, now)
+    .run(input.taskId, input.userId, input.provider, input.permissionMode, input.branch, input.cwd, input.model ?? null, now, now)
   const chat = getChat(db, Number(result.lastInsertRowid))
   if (!chat) throw new Error('Conversa recém-criada não encontrada.')
   return chat
@@ -129,6 +151,8 @@ export function updateChat(
     permissionMode: PermissionMode
     providerSessionId: string
     suggestion: string | null
+    model: string | null
+    shared: boolean
   }>,
   now: Date
 ): StoredChat | null {
@@ -137,14 +161,16 @@ export function updateChat(
     status: 'status',
     permissionMode: 'permission_mode',
     providerSessionId: 'provider_session_id',
-    suggestion: 'suggestion'
+    suggestion: 'suggestion',
+    model: 'model',
+    shared: 'shared'
   }
   const sets: string[] = []
-  const values: (string | null)[] = []
+  const values: (string | number | null)[] = []
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) continue
     sets.push(`${columns[key]} = ?`)
-    values.push(value)
+    values.push(typeof value === 'boolean' ? (value ? 1 : 0) : value)
   }
   sets.push('updated_at = ?')
   values.push(now.toISOString())

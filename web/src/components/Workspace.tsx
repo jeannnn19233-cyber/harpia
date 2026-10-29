@@ -6,6 +6,7 @@ import { useHarpia } from '../lib/store.ts'
 import { AccountsDialog } from './AccountsDialog.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Board } from './Board.tsx'
+import { Conversations } from './chat/Conversations.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
 import { MemoryDialog, useOpenFindings, WatcherDialog } from './Watcher.tsx'
 import { TaskWorkspace } from './task/TaskWorkspace.tsx'
@@ -30,7 +31,8 @@ function CloneBadge({ project }: { project: Project }) {
 }
 
 export function Workspace({ onLogout }: { onLogout: () => void }) {
-  const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus } = useHarpia()
+  const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus, view, setView } =
+    useHarpia()
   const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | null>(null)
   const openFindings = useOpenFindings(projectId)
 
@@ -59,7 +61,25 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
     <div className="flex h-full flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-2.5">
         <span className="text-lg font-bold tracking-tight text-brand-400">Harpia</span>
-        {projects.length > 0 && (
+        <div className="flex rounded-lg border border-zinc-800 p-0.5 text-sm" role="tablist">
+          {(
+            [
+              ['board', 'Quadro'],
+              ['chats', 'Conversas']
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={view === key}
+              className={`rounded-md px-3 py-1 ${view === key ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'}`}
+              onClick={() => setView(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {view === 'board' && projects.length > 0 && (
           <select
             className="input w-auto py-1.5"
             value={projectId ?? ''}
@@ -72,15 +92,17 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
             ))}
           </select>
         )}
-        <button className="btn-ghost py-1.5" onClick={() => setDialog('project')}>
-          + Projeto
-        </button>
-        {projectId && (
+        {view === 'board' && (
+          <button className="btn-ghost py-1.5" onClick={() => setDialog('project')}>
+            + Projeto
+          </button>
+        )}
+        {view === 'board' && projectId && (
           <button className="btn-ghost py-1.5" onClick={() => setDialog('memory')} title="O que todo agente sabe ao começar">
             Memória
           </button>
         )}
-        {project && <CloneBadge project={project} />}
+        {view === 'board' && project && <CloneBadge project={project} />}
 
         <div className="ml-auto flex items-center gap-3">
           {!connected && <span className="text-xs text-amber-400">Reconectando…</span>}
@@ -89,7 +111,7 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
               <Avatar key={user.id} user={user} size="sm" online />
             ))}
           </div>
-          {projectId && (
+          {view === 'board' && projectId && (
             <button className="btn-ghost py-1.5" onClick={() => setDialog('watcher')}>
               Vigia
               {openFindings.length > 0 && (
@@ -112,7 +134,9 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
-      {project && openTaskId ? (
+      {view === 'chats' ? (
+        <Conversations />
+      ) : project && openTaskId ? (
         <TaskWorkspace key={openTaskId} taskId={openTaskId} />
       ) : project ? (
         <Board projectId={project.id} />

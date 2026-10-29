@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { createInterface } from 'node:readline'
-import type { PermissionMode } from '../../../../shared/types.ts'
-import { truncate, type ProviderAdapter, type ProviderHooks, type ProviderInput } from './types.ts'
+import type { ChatModel, PermissionMode } from '../../../../shared/types.ts'
+import { truncate, type ProviderAdapter, type ProviderHooks, type ProviderInput, type SpawnAsUser } from './types.ts'
 
 const CODEX_BIN = process.env.HARPIA_CODEX_BIN ?? 'codex'
 
@@ -105,7 +105,37 @@ export class CodexEventMapper {
   }
 }
 
-type SpawnAsUser = (input: { command: string; args: string[]; cwd: string; env: Record<string, string> }) => ChildProcess
+const CLIENT_INFO = { name: 'harpia', title: 'Harpia', version: '0.1.0' }
+
+// Pergunta ao Codex da pessoa quais modelos a conta dela oferece (model/list). Não gasta tokens.
+export function listCodexModels(spawnAsUser: SpawnAsUser, cwd: string, timeoutMs = 20000): Promise<ChatModel[]> {
+  const child = spawnAsUser({ command: CODEX_BIN, args: ['app-server'], cwd, env: {} })
+  const send = (message: Json) => child.stdin?.write(`${JSON.stringify(message)}\n`)
+  return new Promise<ChatModel[]>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('O Codex demorou para responder.')), timeoutMs)
+    child.on('error', reject)
+    child.on('exit', () => reject(new Error('O Codex encerrou antes de listar os modelos.')))
+    createInterface({ input: child.stdout! }).on('line', (line) => {
+      let message: Json
+      try {
+        message = JSON.parse(line) as Json
+      } catch {
+        return
+      }
+      if (message.id === 1) {
+        send({ jsonrpc: '2.0', method: 'initialized' })
+        send({ jsonrpc: '2.0', id: 2, method: 'model/list', params: { includeHidden: false } })
+      } else if (message.id === 2) {
+        clearTimeout(timer)
+        const error = message.error as { message?: string } | undefined
+        if (error) return reject(new Error(error.message ?? 'O Codex não listou os modelos.'))
+        const data = ((message.result as Json | undefined)?.data ?? []) as { model: string; displayName?: string; description?: string }[]
+        resolve(data.map((model) => ({ id: model.model, label: model.displayName || model.model, description: model.description ?? '' })))
+      }
+    })
+    send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientInfo: CLIENT_INFO, capabilities: {} } })
+  }).finally(() => child.kill('SIGTERM'))
+}
 
 export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUser): ProviderAdapter {
   const { hooks } = input
@@ -196,12 +226,13 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
     })
 
     return (async () => {
-      await request('initialize', { clientInfo: { name: 'harpia', title: 'Harpia', version: '0.1.0' }, capabilities: {} })
+      await request('initialize', { clientInfo: CLIENT_INFO, capabilities: {} })
       write({ jsonrpc: '2.0', method: 'initialized' })
       const settings = {
         cwd: input.cwd,
         approvalPolicy: APPROVAL_POLICY[input.permissionMode],
         sandbox: SANDBOX,
+        ...(input.model ? { model: input.model } : {}),
         ...(input.instructions ? { developerInstructions: input.instructions } : {})
       }
       const response = (await (threadId
@@ -220,7 +251,8 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
       const response = (await request('turn/start', {
         threadId: thread,
         input: [{ type: 'text', text, text_elements: [] }],
-        approvalPolicy: APPROVAL_POLICY[input.permissionMode]
+        approvalPolicy: APPROVAL_POLICY[input.permissionMode],
+        ...(input.model ? { model: input.model } : {})
       })) as { turn?: { id?: string } }
       if (response.turn?.id) {
         turnId = response.turn.id
@@ -246,6 +278,10 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
     async setPermissionMode(mode) {
       // Vale a partir da próxima mensagem.
       input.permissionMode = mode
+    },
+    async setModel(model) {
+      // Vale a partir da próxima mensagem (o turn/start leva o modelo escolhido).
+      input.model = model
     },
     close() {
       closed = true

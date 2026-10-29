@@ -207,6 +207,12 @@ const MIGRATIONS: string[] = [
   // Sugestão da próxima mensagem em cada conversa.
   `
   ALTER TABLE chats ADD COLUMN suggestion TEXT;
+  `,
+  // Fase 2: conversas fora das tasks (privadas ou compartilhadas) e escolha do modelo.
+  `
+  ALTER TABLE chats ADD COLUMN model TEXT;
+  ALTER TABLE chats ADD COLUMN shared INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX idx_chats_user ON chats(user_id, task_id);
   `
 ]
 

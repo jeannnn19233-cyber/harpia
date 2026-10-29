@@ -9,9 +9,9 @@ import { registerAgentRoutes } from './agents/routes.ts'
 import type { AgentSystem } from './agents/system.ts'
 import { registerAuthGuard } from './auth/guard.ts'
 import { ChatManager } from './chat/manager.ts'
-import { createClaudeProvider } from './chat/providers/claude.ts'
-import { createCodexProvider } from './chat/providers/codex.ts'
-import type { ProviderFactory } from './chat/providers/types.ts'
+import { createClaudeProvider, listClaudeModels } from './chat/providers/claude.ts'
+import { createCodexProvider, listCodexModels } from './chat/providers/codex.ts'
+import type { ModelLister, ProviderFactory } from './chat/providers/types.ts'
 import { registerChatRoutes } from './chat/routes.ts'
 import { registerAuthRoutes } from './auth/routes.ts'
 import { deleteExpiredSessions } from './auth/sessions.ts'
@@ -36,6 +36,7 @@ export interface BuildOptions {
   git?: GitRunner
   agents?: AgentSystem
   chatProviders?: ProviderFactory
+  chatModels?: ModelLister
   github?: GitHubClient
   // Bot do Telegram para os avisos. null desliga.
   telegram?: TelegramClient | null
@@ -104,7 +105,14 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
         ctx.agents.spawnPiped({ user: input.user, ...process })
       return input.provider === 'claude' ? createClaudeProvider(input, spawn) : createCodexProvider(input, spawn)
     })
-  registerChatRoutes(app, ctx, new ChatManager(ctx, providers))
+  const lister: ModelLister =
+    options.chatModels ??
+    ((input) => {
+      const spawn = (process: { command: string; args: string[]; cwd: string; env: Record<string, string> }) =>
+        ctx.agents.spawnPiped({ user: input.user, ...process })
+      return input.provider === 'claude' ? listClaudeModels(spawn, input.cwd) : listCodexModels(spawn, input.cwd)
+    })
+  registerChatRoutes(app, ctx, new ChatManager(ctx, providers, lister))
   registerPullRoutes(app, ctx)
   registerWatcherRoutes(
     app,

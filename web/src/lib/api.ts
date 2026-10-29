@@ -6,6 +6,7 @@ import type {
   ChangedFile,
   Chat,
   ChatItem,
+  ChatModel,
   ChatProvider,
   Finding,
   Invite,
@@ -95,6 +96,13 @@ export const api = {
     request<{ item: ChatItem }>('POST', `/api/chats/${id}/approvals/${itemId}`, { decision }),
   setPermissionMode: (id: number, permissionMode: PermissionMode) =>
     request<{ chat: Chat }>('PATCH', `/api/chats/${id}`, { permissionMode }),
+  generalChats: () => request<{ chats: Chat[] }>('GET', '/api/chats'),
+  createGeneralChat: (provider: ChatProvider) => request<{ chat: Chat }>('POST', '/api/chats', { provider }),
+  updateChat: (id: number, input: { model?: string | null; shared?: boolean; title?: string }) =>
+    request<{ chat: Chat }>('PATCH', `/api/chats/${id}`, input),
+  deleteChat: (id: number) => request<{ ok: true }>('DELETE', `/api/chats/${id}`),
+  models: (provider: ChatProvider) =>
+    request<{ models: ChatModel[]; error: string | null }>('GET', `/api/me/models?provider=${provider}`),
   closeChat: (id: number) => request<{ chat: Chat }>('POST', `/api/chats/${id}/close`, {}),
 
   projectPulls: (projectId: number) => request<{ pullRequests: PullRequest[] }>('GET', `/api/projects/${projectId}/pull-requests`),

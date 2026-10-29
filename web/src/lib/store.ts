@@ -13,7 +13,11 @@ import type {
   User
 } from '../../../shared/types.ts'
 
+export type View = 'board' | 'chats'
+
 interface HarpiaState {
+  // Quadro de tasks ou conversas fora das tasks.
+  view: View
   me: User | null
   users: Record<number, User>
   online: number[]
@@ -31,6 +35,7 @@ interface HarpiaState {
   pulls: Record<number, PullRequest>
   findings: Record<number, Finding>
 
+  setView(view: View): void
   setMe(me: User | null): void
   setUsers(users: User[]): void
   setConnected(connected: boolean): void
@@ -51,6 +56,15 @@ interface HarpiaState {
 }
 
 const PROJECT_KEY = 'harpia.projectId'
+const VIEW_KEY = 'harpia.view'
+
+function savedView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'chats' ? 'chats' : 'board'
+  } catch {
+    return 'board'
+  }
+}
 
 function savedProjectId(): number | null {
   try {
@@ -68,6 +82,7 @@ function addEvent(list: TaskEvent[] | undefined, event: TaskEvent): TaskEvent[] 
 }
 
 export const useHarpia = create<HarpiaState>((set, get) => ({
+  view: savedView(),
   me: null,
   users: {},
   online: [],
@@ -84,6 +99,14 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   pulls: {},
   findings: {},
 
+  setView: (view) => {
+    try {
+      localStorage.setItem(VIEW_KEY, view)
+    } catch {
+      // Sem armazenamento local: só não lembra a última tela.
+    }
+    set({ view })
+  },
   setMe: (me) => set({ me }),
   setUsers: (users) => set({ users: Object.fromEntries(users.map((user) => [user.id, user])) }),
   setConnected: (connected) => set({ connected }),
@@ -151,6 +174,12 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
       case 'chat':
         state.upsertChats([message.chat])
         break
+      case 'chat_removed': {
+        const { [message.chatId]: _chat, ...chats } = state.chats
+        const { [message.chatId]: _items, ...chatItems } = state.chatItems
+        set({ chats, chatItems })
+        break
+      }
       case 'chat_item': {
         const list = state.chatItems[message.item.chatId]
         if (!list) break

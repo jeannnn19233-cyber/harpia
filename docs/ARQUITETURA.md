@@ -20,8 +20,9 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 | 3 | Na task, cada participante conversa com o próprio agente (Claude ou Codex) num chat, numa worktree própria; terminal embaixo do chat; a equipe acompanha tudo ao vivo | **pronta** |
 | 5 | GitHub: abrir PR pelo Harpia; task vai para "Feito" sozinha quando o PR tem merge | **pronta** |
 | 4 | Vigia: task parada, Revisão sem PR, tasks parecidas e pessoas mexendo nos mesmos arquivos; tasks parecidas ao criar; memória do projeto nas conversas; avisos no Telegram (ideias do Hermes, veja [estudos/hermes.md](estudos/hermes.md)) | **pronta** (parte sem IA) |
-| 4b | Partes com IA: julgar tasks parecidas, resumo de cada task concluída, sugestões de aprendizado para o `AGENTS.md` | depende de uma conta de IA para o vigia |
-| 2 | Chat de IA com Claude e Codex usando o login de cada pessoa | |
+| 2 | Conversas com o Claude e o Codex fora das tasks, com o login de cada pessoa e escolha do modelo | **pronta** |
+| 4b | Partes com IA: julgar tasks parecidas, resumo de cada task concluída, sugestões de aprendizado para o `AGENTS.md`. Rodam no Claude Code de cada pessoa envolvida (decisão dos sócios), nunca numa conta central | |
+| 6 | Agendamentos (cron), como no Hermes: alimentar o vault do agente pessoal pelo Telegram e revisar os PRs da equipe no GitHub | em estudo |
 
 ## Onde roda
 
@@ -173,6 +174,27 @@ servidor ──API do GitHub──▶ abre o PR e confere o merge
 ```
 
 O servidor nunca roda git dentro do repositório da pessoa e o agente nunca vê o token.
+
+## Regras de negócio da fase 2
+
+- No topo, **Quadro** mostra as tasks e **Conversas** mostra as conversas fora das tasks. Dá para
+  conversar mesmo sem nenhum projeto criado.
+- Cada pessoa usa a própria conta do Claude Code ou do Codex, a mesma conectada em "Minhas IAs".
+  Os agentes precisam dos terminais ligados (`HARPIA_TERMINALS=on`), como nas tasks.
+- **Privadas por padrão.** Só a dona vê a conversa, inclusive ao vivo: o servidor nem envia as
+  mensagens para os outros. Com **Compartilhar**, a equipe passa a acompanhar (só leitura);
+  **Deixar privada** esconde de novo, na hora. Conversas de task continuam visíveis para todos.
+- **Excluir** apaga a conversa do Harpia. Os arquivos que o agente criou continuam na pasta da
+  pessoa no servidor. Conversas de task não podem ser excluídas, só encerradas: fazem parte do
+  histórico da task.
+- Cada conversa roda numa pasta própria (`~/conversas/<data>-<código>` na pasta da pessoa), para
+  o agente não misturar arquivos entre conversas.
+- **Escolha do modelo** (também nas conversas de task): a lista vem da conta de cada pessoa,
+  perguntada ao próprio Claude Code (`supportedModels`) ou Codex (`model/list`), sem gastar tokens.
+  "Modelo padrão" usa o padrão da conta. A troca vale a partir da próxima mensagem. No Codex,
+  voltar para "Modelo padrão" depois de escolher outro só vale quando a conversa for retomada.
+- Tudo o que vale nas tasks vale aqui: aprovações, mensagens durante o trabalho, sugestão da
+  próxima mensagem e avisos no Telegram.
 
 ## Regras de negócio da fase 4
 

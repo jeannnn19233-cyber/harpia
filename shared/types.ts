@@ -156,8 +156,20 @@ export interface Chat {
   branch: string | null
   // Próxima mensagem sugerida pelo agente (só o Claude oferece).
   suggestion: string | null
+  // Modelo escolhido pela pessoa; null usa o padrão da conta dela.
+  model: string | null
+  // Conversas fora das tasks são privadas; com shared, a equipe acompanha (só leitura).
+  // Conversas de task são sempre visíveis para a equipe.
+  shared: boolean
   createdAt: string
   updatedAt: string
+}
+
+// Modelo que a conta da pessoa oferece, como o Claude Code ou o Codex informam.
+export interface ChatModel {
+  id: string
+  label: string
+  description: string
 }
 
 interface ChatItemBase {
@@ -273,6 +285,8 @@ export type RealtimeMessage =
   | { type: 'session'; session: AgentSession }
   | { type: 'chat'; chat: Chat }
   | { type: 'chat_item'; item: ChatItem }
+  // A conversa deixou de estar visível para quem recebe (foi excluída ou deixou de ser compartilhada).
+  | { type: 'chat_removed'; chatId: number }
   | { type: 'pull_request'; pullRequest: PullRequest }
   | { type: 'finding'; finding: Finding }
   | { type: 'memory'; memory: ProjectMemory }

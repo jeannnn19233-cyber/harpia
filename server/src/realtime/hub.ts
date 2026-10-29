@@ -32,6 +32,14 @@ export class RealtimeHub {
     }
   }
 
+  // Só para quem passa no filtro (ex.: conversas privadas vão só para a dona).
+  broadcastWhere(message: RealtimeMessage, canReceive: (userId: number) => boolean): void {
+    const data = JSON.stringify(message)
+    for (const [socket, userId] of this.clients) {
+      if (socket.readyState === OPEN && canReceive(userId)) socket.send(data)
+    }
+  }
+
   private broadcastPresence(): void {
     this.broadcast({ type: 'presence', userIds: this.onlineUserIds() })
   }

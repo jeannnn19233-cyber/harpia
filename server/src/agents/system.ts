@@ -22,6 +22,8 @@ export interface AgentSystem {
     branch: string
   }>
   homeDir(user: User): string
+  // Cria (como a pessoa) uma pasta dentro da pasta dela e devolve o caminho. Usada pelas conversas fora das tasks.
+  prepareFolder(user: User, relativePath: string): Promise<string>
   // command null abre só o shell.
   startSession(input: { user: User; name: string; cwd: string; command: string | null }): Promise<void>
   isRunning(user: User, name: string): Promise<boolean>

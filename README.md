@@ -3,7 +3,7 @@
 Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio agente de IA
 (Claude Code, Codex), rodando 24h numa VPS.
 
-**Situação:** fases 1, 3, 4 (parte sem IA) e 5 prontas.
+**Situação:** fases 1, 2, 3, 4 (parte sem IA) e 5 prontas.
 
 - Login com convites, projetos ligados a repositórios git e quadro de tasks em tempo real
   (Backlog, Em andamento, Revisão, Feito), com participantes, histórico completo e comentários.
@@ -13,6 +13,8 @@ Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio age
 - Cada pessoa conecta a própria assinatura do Claude e do Codex em **Minhas IAs**.
 - Na seção **Entrega**, cada pessoa abre o PR com as próprias alterações. Quando os PRs da task
   têm merge, ela vai sozinha para "Feito".
+- Em **Conversas**, cada pessoa conversa com o Claude ou o Codex fora das tasks, escolhendo o
+  modelo. As conversas são privadas; quem quiser pode compartilhar com a equipe.
 - O **Vigia** avisa tasks paradas, em Revisão sem PR, parecidas e pessoas mexendo nos mesmos
   arquivos, na tela e no Telegram. A **Memória** do projeto entra em toda conversa com os agentes.
 

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { ClaudeMessageMapper, describeClaudeTool } from '../src/chat/providers/claude.ts'
-import { createCodexProvider } from '../src/chat/providers/codex.ts'
+import { createCodexProvider, listCodexModels } from '../src/chat/providers/codex.ts'
 import type { ProviderHooks } from '../src/chat/providers/types.ts'
 
 // Grava tudo o que o provedor avisa, na ordem.
@@ -34,10 +34,10 @@ function recorder(decision: 'allow' | 'deny' = 'allow') {
 const fakeServer = fileURLToPath(new URL('./fixtures/fake-codex-app-server.mjs', import.meta.url))
 const user = { id: 1, name: 'Ana', email: 'ana@x.com', role: 'admin' as const, createdAt: '' }
 
-function codexWith(decision: 'allow' | 'deny', resumeId: string | null = null) {
+function codexWith(decision: 'allow' | 'deny', resumeId: string | null = null, model: string | null = null) {
   const record = recorder(decision)
   const provider = createCodexProvider(
-    { provider: 'codex', user, cwd: '/trabalho/T-1', resumeId, permissionMode: 'ask', instructions: 'Task T-1', hooks: record.hooks },
+    { provider: 'codex', user, cwd: '/trabalho/T-1', resumeId, permissionMode: 'ask', model, instructions: 'Task T-1', hooks: record.hooks },
     ({ cwd }) =>
       spawn(process.execPath, [fakeServer], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, EXPECTED_CWD: cwd } })
   )
@@ -77,6 +77,27 @@ describe('adaptador do Codex', () => {
     await turnEnded
     provider.close()
     expect(log).toContainEqual(['delta', 'steer-1', 'Também vou: enquanto isso, siga para a parte 4'])
+  })
+
+  it('usa o modelo escolhido e troca no meio da conversa', async () => {
+    const first = codexWith('allow', null, 'gpt-codex')
+    await first.provider.send('oi')
+    await first.turnEnded
+    expect(first.log).toContainEqual(['delta', 'modelo', 'modelo gpt-codex'])
+    await first.provider.setModel('gpt-mini')
+    first.log.length = 0
+    await first.provider.send('de novo')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    first.provider.close()
+    expect(first.log).toContainEqual(['delta', 'modelo', 'modelo gpt-mini'])
+  })
+
+  it('lista os modelos da conta da pessoa (model/list)', async () => {
+    const models = await listCodexModels(() => spawn(process.execPath, [fakeServer], { stdio: ['pipe', 'pipe', 'pipe'] }), '/home')
+    expect(models).toEqual([
+      { id: 'gpt-codex', label: 'GPT Codex', description: 'Para programar' },
+      { id: 'gpt-mini', label: 'gpt-mini', description: 'Rápido' }
+    ])
   })
 
   it('retoma uma conversa existente', async () => {

@@ -19,12 +19,18 @@ export async function resync(): Promise<void> {
   if (status.enabled) {
     store.upsertSessions((await api.runningSessions()).sessions)
     store.upsertChats((await api.activeChats()).chats)
+    store.upsertChats((await api.generalChats()).chats)
   }
   // Conversas abertas na tela podem ter recebido mensagens enquanto a conexão estava fora.
   for (const chatId of Object.keys(useHarpia.getState().chatItems).map(Number)) {
-    const { chat, items } = await api.chat(chatId)
-    store.upsertChats([chat])
-    store.setChatItems(chatId, items)
+    try {
+      const { chat, items } = await api.chat(chatId)
+      store.upsertChats([chat])
+      store.setChatItems(chatId, items)
+    } catch {
+      // Excluída ou deixou de ser compartilhada enquanto a conexão estava fora.
+      store.apply({ type: 'chat_removed', chatId })
+    }
   }
   if (openTaskId) {
     const detail = await api.task(openTaskId)
