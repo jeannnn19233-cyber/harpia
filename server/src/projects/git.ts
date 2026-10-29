@@ -1,8 +1,12 @@
 import { execFile } from 'node:child_process'
 
+// O servidor guarda cada repositório como espelho (git clone --mirror). As cópias de
+// trabalho de cada pessoa são clonadas desse espelho; só o espelho fala com o GitHub.
 export interface GitRunner {
-  clone(input: { repoUrl: string; destination: string; branch: string | null }): Promise<void>
-  currentBranch(repoPath: string): Promise<string>
+  clone(input: { repoUrl: string; destination: string }): Promise<void>
+  fetch(repoPath: string): Promise<void>
+  defaultBranch(repoPath: string): Promise<string>
+  branchExists(repoPath: string, branch: string): Promise<boolean>
 }
 
 // Com HARPIA_GITHUB_TOKEN definido, o git usa esse token para repositórios privados do GitHub.
@@ -36,13 +40,21 @@ function run(args: string[], cwd?: string): Promise<string> {
 }
 
 export const systemGit: GitRunner = {
-  async clone({ repoUrl, destination, branch }) {
-    const args = ['clone']
-    if (branch) args.push('--branch', branch)
-    args.push('--', repoUrl, destination)
-    await run(args)
+  async clone({ repoUrl, destination }) {
+    await run(['clone', '--mirror', '--', repoUrl, destination])
   },
-  currentBranch(repoPath) {
-    return run(['rev-parse', '--abbrev-ref', 'HEAD'], repoPath)
+  async fetch(repoPath) {
+    await run(['fetch', '--prune', 'origin'], repoPath)
+  },
+  defaultBranch(repoPath) {
+    return run(['symbolic-ref', '--short', 'HEAD'], repoPath)
+  },
+  async branchExists(repoPath, branch) {
+    try {
+      await run(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], repoPath)
+      return true
+    } catch {
+      return false
+    }
   }
 }

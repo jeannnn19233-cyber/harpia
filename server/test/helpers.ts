@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { buildApp } from '../src/app.ts'
 import type { AppContext } from '../src/context.ts'
+import type { AgentSystem } from '../src/agents/system.ts'
 import type { GitRunner } from '../src/projects/git.ts'
+import { FakeAgentSystem } from './fake-agents.ts'
 
 export interface TestServer {
   app: FastifyInstance
@@ -15,13 +17,24 @@ export interface TestServer {
 
 export const fakeGit: GitRunner = {
   async clone() {},
-  async currentBranch() {
+  async fetch() {},
+  async defaultBranch() {
     return 'main'
+  },
+  async branchExists() {
+    return true
   }
 }
 
 export async function startServer(
-  options: { git?: GitRunner; allowedOrigins?: string[]; setupCode?: string } = {}
+  options: {
+    git?: GitRunner
+    agents?: AgentSystem
+    allowedOrigins?: string[]
+    setupCode?: string
+    terminalsEnabled?: boolean
+    maxSessionsPerUser?: number
+  } = {}
 ): Promise<TestServer> {
   const dataDir = mkdtempSync(join(tmpdir(), 'harpia-test-'))
   const { app, ctx } = await buildApp({
@@ -31,9 +44,12 @@ export async function startServer(
       cookieSecure: false,
       webDir: null,
       allowedOrigins: options.allowedOrigins ?? [],
-      setupCode: options.setupCode ?? null
+      setupCode: options.setupCode ?? null,
+      terminalsEnabled: options.terminalsEnabled ?? false,
+      maxSessionsPerUser: options.maxSessionsPerUser ?? 5
     },
-    git: options.git ?? fakeGit
+    git: options.git ?? fakeGit,
+    agents: options.agents ?? new FakeAgentSystem()
   })
   await app.ready()
   return {

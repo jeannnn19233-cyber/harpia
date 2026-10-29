@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { TASK_STATUSES, TASK_STATUS_LABELS, type TaskEvent, type TaskStatus, type User } from '../../../shared/types.ts'
+import {
+  AGENT_LABELS,
+  TASK_STATUSES,
+  TASK_STATUS_LABELS,
+  type AgentSession,
+  type TaskEvent,
+  type TaskStatus,
+  type User
+} from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { fullDate, timeAgo } from '../lib/format.ts'
 import { useHarpia } from '../lib/store.ts'
+import { AgentsSection } from './Agents.tsx'
 import { Avatar } from './Avatar.tsx'
 
 function describe(event: TaskEvent, users: Record<number, User>): string {
@@ -17,6 +26,7 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
       return `editou ${labels.join(' e ')}`
     }
     case 'status_changed':
+      if (event.data.reason === 'agent') return `começou a trabalhar: moveu para ${status(event.data.to)}`
       return `moveu de ${status(event.data.from)} para ${status(event.data.to)}`
     case 'owner_changed':
       if (event.data.to === null) return 'removeu o responsável'
@@ -28,6 +38,13 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
       return 'saiu da task'
     case 'comment':
       return 'comentou'
+    case 'agent_started':
+      return `abriu ${AGENT_LABELS[event.data.kind as AgentSession['kind']] ?? 'um agente'}`
+    case 'agent_stopped': {
+      const label = AGENT_LABELS[event.data.kind as AgentSession['kind']] ?? 'agente'
+      if (event.data.reason === 'ended') return `a sessão de ${label} de ${name(event.data.ownerId)} terminou`
+      return event.data.ownerId === event.actorId ? `encerrou o ${label}` : `encerrou o ${label} de ${name(event.data.ownerId)}`
+    }
   }
 }
 
@@ -203,6 +220,8 @@ export function TaskPanel({ taskId }: { taskId: number }) {
             </ul>
           )}
         </section>
+
+        <AgentsSection taskId={task.id} taskDone={task.status === 'done'} />
 
         <section>
           <h3 className="mb-2 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Descrição</h3>

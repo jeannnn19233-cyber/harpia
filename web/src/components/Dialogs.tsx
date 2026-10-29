@@ -3,11 +3,24 @@ import { api } from '../lib/api.ts'
 import { useHarpia } from '../lib/store.ts'
 import { Avatar } from './Avatar.tsx'
 
-export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Dialog({
+  title,
+  onClose,
+  wide = false,
+  children
+}: {
+  title: string
+  onClose: () => void
+  wide?: boolean
+  children: ReactNode
+}) {
   return (
-    <div className="fixed inset-0 z-30 flex items-start justify-center bg-black/60 px-4 pt-24" onClick={onClose}>
+    <div
+      className={`fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/60 px-4 ${wide ? 'pt-10 pb-10' : 'pt-24'}`}
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl"
+        className={`w-full ${wide ? 'max-w-4xl' : 'max-w-md'} rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

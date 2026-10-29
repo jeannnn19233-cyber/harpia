@@ -1,4 +1,16 @@
-import type { Invite, Project, Task, TaskDetail, TaskEvent, TaskStatus, User } from '../../../shared/types.ts'
+import type {
+  AgentAccounts,
+  AgentKind,
+  AgentSession,
+  AgentsStatus,
+  Invite,
+  Project,
+  Task,
+  TaskDetail,
+  TaskEvent,
+  TaskStatus,
+  User
+} from '../../../shared/types.ts'
 
 export class ApiError extends Error {
   readonly status: number
@@ -50,5 +62,14 @@ export const api = {
   ) => request<{ task: Task; events: TaskEvent[] }>('PATCH', `/api/tasks/${id}`, input),
   joinTask: (id: number) => request<{ task: Task }>('POST', `/api/tasks/${id}/join`, {}),
   leaveTask: (id: number) => request<{ task: Task }>('POST', `/api/tasks/${id}/leave`, {}),
-  comment: (id: number, body: string) => request<{ event: TaskEvent }>('POST', `/api/tasks/${id}/comments`, { body })
+  comment: (id: number, body: string) => request<{ event: TaskEvent }>('POST', `/api/tasks/${id}/comments`, { body }),
+
+  agentsStatus: () => request<AgentsStatus>('GET', '/api/agents/status'),
+  accounts: () => request<{ accounts: AgentAccounts }>('GET', '/api/me/accounts'),
+  openPersonalTerminal: () => request<{ session: AgentSession }>('POST', '/api/me/terminal', {}),
+  runningSessions: () => request<{ sessions: AgentSession[] }>('GET', '/api/sessions/running'),
+  taskSessions: (taskId: number) => request<{ sessions: AgentSession[] }>('GET', `/api/tasks/${taskId}/sessions`),
+  startSession: (taskId: number, kind: AgentKind) =>
+    request<{ session: AgentSession }>('POST', `/api/tasks/${taskId}/sessions`, { kind }),
+  stopSession: (id: number) => request<{ session: AgentSession }>('POST', `/api/sessions/${id}/stop`, {})
 }

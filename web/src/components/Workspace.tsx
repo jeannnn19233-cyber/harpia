@@ -3,6 +3,7 @@ import type { Project } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { startRealtime } from '../lib/realtime.ts'
 import { useHarpia } from '../lib/store.ts'
+import { AccountsDialog, SessionsOverlay } from './Agents.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Board } from './Board.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
@@ -28,8 +29,9 @@ function CloneBadge({ project }: { project: Project }) {
 }
 
 export function Workspace({ onLogout }: { onLogout: () => void }) {
-  const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks } = useHarpia()
-  const [dialog, setDialog] = useState<'project' | 'team' | null>(null)
+  const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus, watchingSessionId } =
+    useHarpia()
+  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | null>(null)
 
   useEffect(() => startRealtime(), [])
 
@@ -77,6 +79,11 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
               <Avatar key={user.id} user={user} size="sm" online />
             ))}
           </div>
+          {agentsStatus?.enabled && (
+            <button className="btn-ghost py-1.5" onClick={() => setDialog('accounts')}>
+              Minhas IAs
+            </button>
+          )}
           <button className="btn-ghost py-1.5" onClick={() => setDialog('team')}>
             Equipe
           </button>
@@ -106,6 +113,8 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
         </Dialog>
       )}
       {dialog === 'team' && <TeamDialog onClose={() => setDialog(null)} />}
+      {dialog === 'accounts' && <AccountsDialog onClose={() => setDialog(null)} />}
+      {watchingSessionId && <SessionsOverlay sessionId={watchingSessionId} />}
     </div>
   )
 }

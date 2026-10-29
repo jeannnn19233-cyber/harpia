@@ -1,4 +1,5 @@
 import type { Db } from './db/index.ts'
+import type { AgentSystem } from './agents/system.ts'
 import type { GitRunner } from './projects/git.ts'
 import type { RealtimeHub } from './realtime/hub.ts'
 
@@ -15,6 +16,10 @@ export interface AppConfig {
   allowedOrigins: string[]
   // Código exigido para criar a primeira conta. null permite criar sem código.
   setupCode: string | null
+  // Terminais com agentes de IA (fase 3). Desligados até o administrador ligar.
+  terminalsEnabled: boolean
+  // Limite de sessões abertas ao mesmo tempo por pessoa.
+  maxSessionsPerUser: number
 }
 
 export interface AppContext {
@@ -22,5 +27,6 @@ export interface AppContext {
   hub: RealtimeHub
   config: AppConfig
   git: GitRunner
+  agents: AgentSystem
   now: () => Date
 }

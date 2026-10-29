@@ -1,9 +1,12 @@
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync, renameSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
 import cookie from '@fastify/cookie'
 import fastifyStatic from '@fastify/static'
 import websocket from '@fastify/websocket'
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify'
+import { LinuxAgentSystem } from './agents/linux.ts'
+import { registerAgentRoutes } from './agents/routes.ts'
+import type { AgentSystem } from './agents/system.ts'
 import { registerAuthGuard } from './auth/guard.ts'
 import { registerAuthRoutes } from './auth/routes.ts'
 import { deleteExpiredSessions } from './auth/sessions.ts'
@@ -20,16 +23,37 @@ export interface BuildOptions {
   config: AppConfig
   logger?: FastifyServerOptions['logger']
   git?: GitRunner
+  agents?: AgentSystem
   now?: () => Date
+}
+
+// O banco fica numa pasta só do servidor, fora do alcance dos usuários dos agentes.
+// Instalações antigas guardavam o banco direto na pasta de dados: ele é movido uma vez.
+function databaseFile(dataDir: string): string {
+  const serverDir = join(dataDir, 'server')
+  mkdirSync(serverDir, { recursive: true })
+  chmodSync(serverDir, 0o700)
+  const file = join(serverDir, 'harpia.db')
+  const legacy = join(dataDir, 'harpia.db')
+  if (!existsSync(file) && existsSync(legacy)) {
+    for (const suffix of ['', '-wal', '-shm']) {
+      if (existsSync(legacy + suffix)) renameSync(legacy + suffix, file + suffix)
+    }
+  }
+  return file
 }
 
 export async function buildApp(options: BuildOptions): Promise<{ app: FastifyInstance; ctx: AppContext }> {
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 1024 * 1024 })
+  const dataDir = options.config.dataDir
   const ctx: AppContext = {
-    db: openDatabase(join(options.config.dataDir, 'harpia.db')),
+    db: openDatabase(databaseFile(dataDir)),
     hub: new RealtimeHub(),
     config: options.config,
     git: options.git ?? systemGit,
+    agents:
+      options.agents ??
+      (await LinuxAgentSystem.create({ homesDir: join(dataDir, 'homes'), runDir: join(dataDir, 'run') })),
     now: options.now ?? (() => new Date())
   }
 
@@ -41,6 +65,7 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
   registerAuthRoutes(app, ctx)
   registerProjectRoutes(app, ctx)
   registerTaskRoutes(app, ctx)
+  registerAgentRoutes(app, ctx)
   registerRealtimeRoutes(app, ctx)
 
   const webDir = options.config.webDir

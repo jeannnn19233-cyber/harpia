@@ -3,6 +3,10 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildApp } from './app.ts'
 
+// Arquivos criados pelo servidor (espelhos dos repositórios, configurações) nunca ficam
+// graváveis por outros usuários, incluindo os usuários dos agentes.
+process.umask(0o022)
+
 const here = dirname(fileURLToPath(import.meta.url))
 const dataDir = resolve(process.env.HARPIA_DATA_DIR ?? join(homedir(), '.harpia'))
 const host = process.env.HARPIA_HOST ?? '127.0.0.1'
@@ -18,7 +22,9 @@ const { app } = await buildApp({
       .split(',')
       .map((value) => value.trim().replace(/\/+$/, ''))
       .filter(Boolean),
-    setupCode: process.env.HARPIA_SETUP_CODE?.trim() || null
+    setupCode: process.env.HARPIA_SETUP_CODE?.trim() || null,
+    terminalsEnabled: process.env.HARPIA_TERMINALS === 'on',
+    maxSessionsPerUser: Number(process.env.HARPIA_MAX_SESSIONS_PER_USER ?? 5)
   },
   logger: { level: process.env.HARPIA_LOG_LEVEL ?? 'info' }
 })

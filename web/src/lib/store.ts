@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Project, RealtimeMessage, Task, TaskEvent, User } from '../../../shared/types.ts'
+import type { AgentSession, AgentsStatus, Project, RealtimeMessage, Task, TaskEvent, User } from '../../../shared/types.ts'
 
 interface HarpiaState {
   me: User | null
@@ -11,6 +11,10 @@ interface HarpiaState {
   tasks: Record<number, Task>
   openTaskId: number | null
   events: Record<number, TaskEvent[]>
+  agentsStatus: AgentsStatus | null
+  sessions: Record<number, AgentSession>
+  // Sessão aberta na tela de terminais, quando há uma.
+  watchingSessionId: number | null
 
   setMe(me: User | null): void
   setUsers(users: User[]): void
@@ -22,6 +26,9 @@ interface HarpiaState {
   upsertTask(task: Task): void
   openTask(taskId: number | null): void
   setEvents(taskId: number, events: TaskEvent[]): void
+  setAgentsStatus(status: AgentsStatus): void
+  upsertSessions(sessions: AgentSession[]): void
+  watchSession(sessionId: number | null): void
   apply(message: RealtimeMessage): void
 }
 
@@ -52,6 +59,9 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   tasks: {},
   openTaskId: null,
   events: {},
+  agentsStatus: null,
+  sessions: {},
+  watchingSessionId: null,
 
   setMe: (me) => set({ me }),
   setUsers: (users) => set({ users: Object.fromEntries(users.map((user) => [user.id, user])) }),
@@ -82,6 +92,10 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
     set((state) => (task.projectId === state.projectId ? { tasks: { ...state.tasks, [task.id]: task } } : {})),
   openTask: (openTaskId) => set({ openTaskId }),
   setEvents: (taskId, events) => set((state) => ({ events: { ...state.events, [taskId]: events } })),
+  setAgentsStatus: (agentsStatus) => set({ agentsStatus }),
+  upsertSessions: (sessions) =>
+    set((state) => ({ sessions: { ...state.sessions, ...Object.fromEntries(sessions.map((s) => [s.id, s])) } })),
+  watchSession: (watchingSessionId) => set({ watchingSessionId }),
 
   apply: (message) => {
     const state = get()
@@ -97,6 +111,9 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
         break
       case 'task':
         state.upsertTask(message.task)
+        break
+      case 'session':
+        state.upsertSessions([message.session])
         break
       case 'task_event': {
         const list = addEvent(state.events[message.event.taskId], message.event)

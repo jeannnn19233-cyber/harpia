@@ -56,7 +56,25 @@ describe('projetos', () => {
 
     const project = await waitForStatus(cookie, created.json().project.id, ['ready', 'error'])
     expect(project).toMatchObject({ cloneStatus: 'ready', defaultBranch: 'trunk', cloneError: null })
-    expect(existsSync(join(server.ctx.config.reposDir, 'meu-projeto', 'README.md'))).toBe(true)
+    // O servidor guarda um espelho (sem arquivos de trabalho) com as branches do repositório.
+    const branches = execFileSync('git', ['branch', '--list'], { cwd: join(server.ctx.config.reposDir, 'meu-projeto') })
+    expect(String(branches)).toContain('trunk')
+    expect(existsSync(join(server.ctx.config.reposDir, 'meu-projeto', 'README.md'))).toBe(false)
+  })
+
+  it('avisa quando a branch informada não existe', async () => {
+    server = await startServer({ git: systemGit })
+    const { cookie } = await setupAdmin(server.app)
+    const origin = makeLocalRepo('main')
+    const created = await server.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: { cookie },
+      payload: { name: 'Branch errada', repoUrl: origin, defaultBranch: 'develop' }
+    })
+    const failed = await waitForStatus(cookie, created.json().project.id, ['ready', 'error'])
+    expect(failed.cloneStatus).toBe('error')
+    expect(failed.cloneError).toContain('develop')
   })
 
   it('mostra o erro quando o clone falha e permite tentar de novo', async () => {

@@ -17,8 +17,8 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 | Fase | Entrega | Situação |
 |---|---|---|
 | 1 | Login, convites, projetos (clone do repositório), quadro de tasks em tempo real, histórico e comentários, serviço 24h | **pronta** |
-| 3 | Na task, cada participante abre o próprio agente (Claude Code ou Codex) numa worktree própria; terminais ao vivo para a equipe; sessões persistentes (tmux) | próxima |
-| 5 | GitHub: abrir PR pelo Harpia; task vai para "Feito" sozinha quando o PR tem merge | |
+| 3 | Na task, cada participante abre o próprio agente (Claude Code ou Codex) numa worktree própria; terminais ao vivo para a equipe; sessões persistentes (tmux) | **pronta** |
+| 5 | GitHub: abrir PR pelo Harpia; task vai para "Feito" sozinha quando o PR tem merge | próxima |
 | 4 | Agente vigia: avisa task duplicada, gente mexendo nos mesmos arquivos, task parada há muito tempo, task pronta e ainda aberta | |
 | 2 | Chat de IA com Claude e Codex usando o login de cada pessoa | |
 
@@ -28,11 +28,10 @@ No Coolify, como container Docker (veja [COOLIFY.md](COOLIFY.md)), no mesmo serv
 Clarumi. Os dados ficam no volume `/data`. Por isso:
 
 - **Limites de recursos** no Coolify, para o Harpia não disputar CPU e memória com o Clarumi.
-- **Fase 3:** os agentes rodam dentro do container do Harpia. Cada pessoa terá um usuário Linux
-  próprio dentro do container, com o login do Claude Code e do Codex guardado na pasta dela no
-  volume `/data`. As sessões continuam rodando quando o navegador fecha, mas reiniciam a cada
-  deploy. Antes de ligar os terminais, o acesso ao domínio será restrito e o Harpia ficará numa
-  rede Docker separada da do Clarumi.
+- **Agentes:** rodam dentro do container do Harpia. Cada pessoa tem um usuário Linux próprio
+  (`h<id>`), com o login do Claude Code e do Codex guardado na pasta dela no volume `/data`. As
+  sessões continuam rodando quando o navegador fecha, mas terminam a cada deploy. Antes de ligar
+  os terminais, siga o checklist de [COOLIFY.md](COOLIFY.md#ligar-os-agentes-de-ia-fase-3).
 
 ## Como está organizado
 
@@ -41,6 +40,7 @@ server/   Node.js + TypeScript (roda direto, sem etapa de build)
   src/auth/       contas, sessões, convites
   src/projects/   projetos e clone dos repositórios
   src/tasks/      tasks, participantes e histórico (task_events)
+  src/agents/     usuários Linux por pessoa, cópias de trabalho, sessões no tmux, terminal ao vivo
   src/realtime/   WebSocket: presença online e mudanças ao vivo
   src/db/         SQLite embutido no Node (node:sqlite) e migrações
 web/      React + Vite + Tailwind + zustand
@@ -69,9 +69,40 @@ Escolhas principais:
 - Ir para "Feito" registra a data de conclusão; reabrir limpa. Na fase 5, "Feito" passa a
   depender do merge do PR.
 
+## Regras de negócio da fase 3
+
+- Os terminais ficam desligados até o administrador definir `HARPIA_TERMINALS=on`.
+- Cada pessoa trabalha numa cópia própria do repositório, na branch `harpia/T-<número>-<nome>-<id>`,
+  criada a partir da branch principal. Duas pessoas na mesma task não se atropelam.
+- Abrir um agente coloca a pessoa na task. Se a task estava no Backlog, ela vai para
+  "Em andamento" e, sem responsável, quem abriu assume.
+- Só quem abriu a sessão digita nela; o resto da equipe assiste em modo leitura. O terminal
+  pessoal (usado para conectar as contas de IA) só a própria pessoa vê.
+- Só quem abriu a sessão, ou um administrador, encerra. Fechar a tela não encerra o agente.
+- Abrir, encerrar e o fim de cada sessão ficam no histórico da task.
+
+### Como funciona por dentro
+
+```
+navegador (xterm.js) ──WebSocket──▶ servidor ──node-pty──▶ runuser -u h<id> tmux attach
+                                                              │
+                         tmux (um servidor por pessoa) ◀───────┘
+                            └── claude / codex / bash, na cópia de trabalho da pessoa
+```
+
+- O servidor guarda cada repositório como espelho (`git clone --mirror`) em `/data/repos`. Só o
+  espelho fala com o GitHub, usando `HARPIA_GITHUB_TOKEN`. As cópias de cada pessoa são clonadas
+  do espelho, então o token nunca chega aos agentes.
+- Cada pessoa que assiste abre uma conexão própria ao tmux; quem só assiste entra com
+  `read-only,ignore-size`, para não mudar o tamanho da tela de quem digita.
+- A cada 15 segundos (e ao iniciar) o servidor confere quais sessões ainda existem e registra as
+  que terminaram.
+
 ## Uso do Orca
 
-O [Orca](https://github.com/stablyai/orca) (licença MIT) é a referência para as partes difíceis
-das próximas fases: terminais persistentes com `node-pty` e tmux, detecção do estado dos agentes
-pelos hooks do Claude Code e do Codex (`src/main/agent-hooks`), e gestão de contas. Trechos
+O [Orca](https://github.com/stablyai/orca) (licença MIT) foi a referência de estudo. Na fase 3 o
+Harpia usou as mesmas bibliotecas base (`node-pty`, `xterm.js`), mas um desenho próprio e mais
+simples, com tmux no lugar do processo de terminais do Orca; nenhum código foi copiado. Para a
+fase 4, os hooks do Claude Code e do Codex que o Orca usa para saber se um agente está
+trabalhando, esperando ou parado (`src/main/agent-hooks`) são a próxima referência. Trechos
 copiados do Orca devem manter o aviso de licença original em `THIRD_PARTY_NOTICES.md`.

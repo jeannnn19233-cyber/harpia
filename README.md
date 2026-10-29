@@ -3,13 +3,20 @@
 Workspace para a equipe trabalhar junta em tasks, cada pessoa com o próprio agente de IA
 (Claude Code, Codex), rodando 24h numa VPS.
 
-**Situação:** fase 1 pronta. Há login com convites, projetos ligados a repositórios git, quadro
-de tasks em tempo real (Backlog, Em andamento, Revisão, Feito), participantes por task,
-histórico completo e comentários. O plano das próximas fases está em
-[docs/ARQUITETURA.md](docs/ARQUITETURA.md).
+**Situação:** fases 1 e 3 prontas.
+
+- Login com convites, projetos ligados a repositórios git e quadro de tasks em tempo real
+  (Backlog, Em andamento, Revisão, Feito), com participantes, histórico completo e comentários.
+- Dentro de cada task, cada pessoa abre o próprio Claude Code, Codex ou terminal, na própria
+  cópia do código. A equipe assiste aos terminais ao vivo. Cada pessoa conecta a própria conta de
+  IA em **Minhas IAs**.
+
+O plano das próximas fases está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
 ![Quadro de tasks](docs/assets/quadro.png)
 ![Task com duas pessoas, histórico e comentários](docs/assets/task.png)
+![Agentes da equipe dentro da task](docs/assets/task-agentes.png)
+![Terminal da Ana visto ao vivo pelo Bruno, em modo leitura](docs/assets/terminal-ao-vivo.png)
 
 ## Rodar no seu computador
 

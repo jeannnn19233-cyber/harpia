@@ -52,6 +52,8 @@ export interface Task {
 }
 
 export type TaskEventType =
+  | 'agent_started'
+  | 'agent_stopped'
   | 'created'
   | 'edited'
   | 'status_changed'
@@ -80,6 +82,41 @@ export interface Invite {
   expiresAt: string
 }
 
+// Agentes de IA e terminais (fase 3).
+export const AGENT_KINDS = ['claude', 'codex', 'shell'] as const
+export type AgentKind = (typeof AGENT_KINDS)[number]
+
+export const AGENT_LABELS: Record<AgentKind | 'account', string> = {
+  claude: 'Claude Code',
+  codex: 'Codex',
+  shell: 'Terminal',
+  account: 'Terminal pessoal'
+}
+
+export interface AgentSession {
+  id: number
+  // null no terminal pessoal (usado para conectar as contas de IA).
+  taskId: number | null
+  userId: number
+  kind: AgentKind | 'account'
+  branch: string | null
+  status: 'running' | 'exited'
+  createdAt: string
+  endedAt: string | null
+}
+
+export interface AgentsStatus {
+  enabled: boolean
+  // Por que os terminais estão desligados, quando estão.
+  reason: string | null
+}
+
+// Se a pessoa já conectou cada ferramenta de IA no servidor.
+export interface AgentAccounts {
+  claude: boolean
+  codex: boolean
+}
+
 // Mensagens enviadas pelo servidor em tempo real (WebSocket).
 export type RealtimeMessage =
   | { type: 'presence'; userIds: number[] }
@@ -87,3 +124,4 @@ export type RealtimeMessage =
   | { type: 'task'; task: Task }
   | { type: 'task_event'; event: TaskEvent }
   | { type: 'user'; user: User }
+  | { type: 'session'; session: AgentSession }

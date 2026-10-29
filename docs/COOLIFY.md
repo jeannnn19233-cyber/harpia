@@ -31,6 +31,8 @@ Em **Environment Variables**:
 | `HARPIA_COOKIE_SECURE` | `true` | O Coolify serve o Harpia por HTTPS. |
 | `HARPIA_ALLOWED_ORIGINS` | `https://harpia.seudominio.com.br` | O mesmo domínio do passo 1, sem barra no fim. |
 | `HARPIA_GITHUB_TOKEN` | token do GitHub (marque como secreto) | Para clonar repositórios privados. |
+| `HARPIA_TERMINALS` | `on` | Liga os terminais com agentes de IA (fase 3). **Só ligue depois do checklist da seção "Ligar os agentes de IA".** |
+| `HARPIA_MAX_SESSIONS_PER_USER` | `5` (padrão) | Quantos agentes cada pessoa pode ter abertos ao mesmo tempo. |
 
 Para gerar o código de configuração: `openssl rand -base64 24`.
 
@@ -41,8 +43,9 @@ permissão **Contents: Read** (na fase 5, quando o Harpia abrir PRs, ela passa a
 ## 4. Limites de recursos
 
 O mesmo servidor roda o Clarumi. Para o Harpia nunca disputar recursos com ele, em
-**Resource Limits** defina limites. Para a fase 1 bastam 1 CPU e 1 GB de memória. Na fase 3,
-quando os agentes de IA rodarem dentro do Harpia, esses limites vão precisar subir.
+**Resource Limits** defina limites. Sem os terminais ligados, 1 CPU e 1 GB de memória bastam.
+Com os agentes de IA ligados, conte cerca de 1 GB de memória por agente aberto ao mesmo tempo
+(por exemplo, 4 CPUs e 6 GB para 3 pessoas com 2 agentes cada).
 
 ## 5. Deploy e primeiro acesso
 
@@ -67,12 +70,43 @@ node --disable-warning=ExperimentalWarning -e "require('node:sqlite'); new (requ
 
 Depois copie `/data/backup.db` para fora do servidor (ou ative os backups de volume do Coolify).
 
+## Ligar os agentes de IA (fase 3)
+
+Com `HARPIA_TERMINALS=on`, cada pessoa abre o próprio Claude Code ou Codex dentro das tasks.
+Isso significa que **quem entra no Harpia consegue rodar comandos no servidor**. Antes de ligar:
+
+1. **Rede separada do Clarumi.** No Coolify, crie um *Destination* novo (Servers → seu servidor →
+   Destinations → uma rede Docker própria, por exemplo `harpia`) e faça o deploy do Harpia nele.
+   Para conferir, abra um terminal no Harpia e tente alcançar o banco do Clarumi pelo nome do
+   container dele (`getent hosts <nome-do-container>`). Não pode responder.
+2. **Acesso só para a equipe.** O login do Harpia já protege, mas uma senha vazada passaria a dar
+   acesso a um terminal. Coloque uma segunda barreira na frente do domínio: Cloudflare Access
+   (login pelo e-mail da equipe), Tailscale (o domínio só abre na rede da equipe) ou uma lista de
+   IPs no proxy do Coolify.
+3. **Limites de recursos** da seção 4.
+4. **Nada de segredos de produção no Harpia.** Não coloque chaves do Clarumi nas variáveis do
+   Harpia, e nunca monte o socket do Docker (`/var/run/docker.sock`) nele.
+
+Depois, adicione `HARPIA_TERMINALS=on` e faça um novo deploy. Cada pessoa abre **Minhas IAs**
+e conecta a própria conta do Claude Code e do Codex.
+
+### Como os agentes ficam isolados
+
+- O container roda o servidor como root só para criar um usuário Linux por pessoa (`h1`, `h2`…).
+  Os agentes nunca rodam como root: cada um roda com o usuário de quem o abriu.
+- Cada pessoa tem uma pasta própria em `/data/homes`, que só ela acessa. O login do Claude Code
+  e do Codex fica ali e sobrevive aos deploys.
+- O banco do Harpia fica em `/data/server`, fora do alcance dos agentes. Nenhuma variável do
+  servidor (token do GitHub, código de configuração) chega aos agentes.
+- Quem assiste ao terminal de outra pessoa só lê; não consegue digitar.
+
+### O que acontece num deploy
+
+Os agentes rodam dentro do container. Um novo deploy (ou reinício) encerra os agentes abertos;
+o histórico da task registra o fim. As cópias de trabalho, branches e logins continuam no volume.
+
 ## Segurança
 
-- **Fase 1:** tudo exige login, convites valem uma vez só e a criação do administrador exige o
-  código de configuração.
-- **Antes da fase 3:** a fase 3 coloca terminais com agentes de IA dentro do Harpia, ou seja,
-  quem entrar consegue rodar comandos no servidor. Antes de ativá-la, vamos restringir quem
-  alcança o domínio (lista de IPs no proxy do Coolify, Cloudflare Access ou Tailscale) e colocar
-  o Harpia numa rede Docker separada da do Clarumi, para os agentes não enxergarem o banco do
-  Clarumi.
+- Tudo exige login, convites valem uma vez só e a criação do administrador exige o código de
+  configuração.
+- Os terminais ficam desligados até `HARPIA_TERMINALS=on`. Veja o checklist acima antes de ligar.

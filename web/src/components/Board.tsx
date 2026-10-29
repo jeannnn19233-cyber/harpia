@@ -24,7 +24,10 @@ function positionBefore(column: Task[], targetId: number | null, movingId: numbe
 }
 
 function TaskCard({ task, onDragStart }: { task: Task; onDragStart: (event: DragEvent, task: Task) => void }) {
-  const { users, online, openTask } = useHarpia()
+  const { users, online, openTask, sessions } = useHarpia()
+  const agentsRunning = Object.values(sessions).filter(
+    (session) => session.taskId === task.id && session.status === 'running'
+  ).length
   const owner = task.ownerId ? users[task.ownerId] : undefined
   const helpers = task.participantIds.filter((id) => id !== task.ownerId)
 
@@ -45,12 +48,20 @@ function TaskCard({ task, onDragStart }: { task: Task; onDragStart: (event: Drag
       </div>
       <div className="mt-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
-          {owner ? (
-            <Avatar user={owner} size="sm" online={online.includes(owner.id)} />
-          ) : (
-            <span className="text-xs text-zinc-500">Sem responsável</span>
+          {owner && <Avatar user={owner} size="sm" online={online.includes(owner.id)} />}
+          {owner && helpers.length > 0 && <span className="text-xs text-zinc-400">+{helpers.length}</span>}
+          {!owner &&
+            (helpers.length > 0 ? (
+              helpers.map((id) => <Avatar key={id} user={users[id]} size="sm" online={online.includes(id)} />)
+            ) : (
+              <span className="text-xs text-zinc-500">Sem responsável</span>
+            ))}
+          {agentsRunning > 0 && (
+            <span className="ml-2 flex items-center gap-1 text-xs text-emerald-400" title="Agentes rodando agora">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              {agentsRunning} {agentsRunning === 1 ? 'agente' : 'agentes'}
+            </span>
           )}
-          {helpers.length > 0 && <span className="text-xs text-zinc-400">+{helpers.length}</span>}
         </div>
         <span className="text-xs text-zinc-500" title="Última atividade">
           {timeAgo(task.lastActivityAt)}

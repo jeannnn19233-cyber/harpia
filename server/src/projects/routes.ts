@@ -50,12 +50,12 @@ export function registerProjectRoutes(app: FastifyInstance, ctx: AppContext): vo
     publish(updateCloneState(ctx.db, project.id, { status: 'cloning' }))
     try {
       await rm(destination, { recursive: true, force: true })
-      await ctx.git.clone({
-        repoUrl: project.repoUrl,
-        destination,
-        branch: project.defaultBranch || null
-      })
-      const branch = await ctx.git.currentBranch(destination)
+      await ctx.git.clone({ repoUrl: project.repoUrl, destination })
+      // Sem branch informada, usa a principal do repositório.
+      const branch = project.defaultBranch || (await ctx.git.defaultBranch(destination))
+      if (!(await ctx.git.branchExists(destination, branch))) {
+        throw new Error(`A branch "${branch}" não existe no repositório.`)
+      }
       publish(updateCloneState(ctx.db, project.id, { status: 'ready', defaultBranch: branch }))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

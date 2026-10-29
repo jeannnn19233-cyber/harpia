@@ -78,6 +78,31 @@ const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_task_events_task ON task_events(task_id, id);
+  `,
+  // Fase 3: cópia de trabalho de cada pessoa por task e sessões dos agentes.
+  `
+  CREATE TABLE task_worktrees (
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (task_id, user_id)
+  );
+
+  CREATE TABLE agent_sessions (
+    id INTEGER PRIMARY KEY,
+    task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('claude', 'codex', 'shell', 'account')),
+    branch TEXT,
+    cwd TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('running', 'exited')),
+    created_at TEXT NOT NULL,
+    ended_at TEXT
+  );
+  CREATE INDEX idx_agent_sessions_task ON agent_sessions(task_id, id);
+  CREATE INDEX idx_agent_sessions_user ON agent_sessions(user_id, status);
   `
 ]
 
