@@ -12,11 +12,17 @@ import { FakeAgentSystem } from './fake-agents.ts'
 import { addMember, setupAdmin, startServer, type TestServer } from './helpers.ts'
 
 const GITHUB_URL = 'https://github.com/clarumi/loja.git'
+// Repositórios de teste nunca assinam commits, seja qual for o git de quem roda os testes.
 const identity = {
   GIT_AUTHOR_NAME: 'Teste',
   GIT_AUTHOR_EMAIL: 't@t',
   GIT_COMMITTER_NAME: 'Teste',
-  GIT_COMMITTER_EMAIL: 't@t'
+  GIT_COMMITTER_EMAIL: 't@t',
+  GIT_CONFIG_COUNT: '2',
+  GIT_CONFIG_KEY_0: 'commit.gpgsign',
+  GIT_CONFIG_VALUE_0: 'false',
+  GIT_CONFIG_KEY_1: 'tag.gpgsign',
+  GIT_CONFIG_VALUE_1: 'false'
 }
 
 // Agentes de teste que usam git de verdade, rodando como o usuário atual.

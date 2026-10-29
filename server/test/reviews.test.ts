@@ -14,7 +14,18 @@ import { FakeTelegram } from './fake-telegram.ts'
 import { addMember, setupAdmin, startServer, type TestServer } from './helpers.ts'
 
 const GITHUB_URL = 'https://github.com/clarumi/loja.git'
-const identity = { GIT_AUTHOR_NAME: 'Teste', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 'Teste', GIT_COMMITTER_EMAIL: 't@t' }
+// Repositórios de teste nunca assinam commits, seja qual for o git de quem roda os testes.
+const identity = {
+  GIT_AUTHOR_NAME: 'Teste',
+  GIT_AUTHOR_EMAIL: 't@t',
+  GIT_COMMITTER_NAME: 'Teste',
+  GIT_COMMITTER_EMAIL: 't@t',
+  GIT_CONFIG_COUNT: '2',
+  GIT_CONFIG_KEY_0: 'commit.gpgsign',
+  GIT_CONFIG_VALUE_0: 'false',
+  GIT_CONFIG_KEY_1: 'tag.gpgsign',
+  GIT_CONFIG_VALUE_1: 'false'
+}
 const SECRET = `ghp_${'a1B2c3D4e5'.repeat(4)}`
 // Cada pessoa conecta o próprio token; no teste, o token diz de quem é a conta.
 const tokenOf = (login: string) => `tok_${login}_${'x'.repeat(24)}`
