@@ -26,7 +26,7 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
   const status = (value: unknown) => TASK_STATUS_LABELS[value as TaskStatus] ?? String(value)
   switch (event.type) {
     case 'created':
-      return 'criou a task'
+      return event.data.importedFrom ? `importou a task do quadro de origem (${event.data.importedFrom})` : 'criou a task'
     case 'edited': {
       const fields = (event.data.fields as string[] | undefined) ?? []
       const labels = fields.map((field) => (field === 'title' ? 'o título' : 'a descrição'))
@@ -66,6 +66,7 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
       if (event.data.reason === 'pr_opened')
         return `moveu para ${status(event.data.to)} ao abrir o PR #${event.data.number}`
       if (event.data.reason === 'agent') return `começou a trabalhar: moveu para ${status(event.data.to)}`
+      if (event.data.reason === 'import') return `moveu para ${status(event.data.to)} pela importação do quadro`
       return `moveu de ${status(event.data.from)} para ${status(event.data.to)}`
     case 'owner_changed':
       if (event.data.to === null) return 'removeu o responsável'

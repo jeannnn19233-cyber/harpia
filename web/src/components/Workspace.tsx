@@ -11,6 +11,7 @@ import { Board } from './Board.tsx'
 import { Conversations } from './chat/Conversations.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
 import { Icon } from './Icon.tsx'
+import { ImportDialog } from './ImportDialog.tsx'
 import { usePendingLearnings } from './insights/Insights.tsx'
 import { MonitorDialog } from './monitors/MonitorDialog.tsx'
 import { NewTaskDialog } from './NewTaskDialog.tsx'
@@ -60,7 +61,7 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
     setView
   } = useHarpia()
   const [dialog, setDialog] = useState<
-    'project' | 'team' | 'accounts' | 'watcher' | 'memory' | 'newTask' | 'search' | 'reviews' | 'monitor' | 'agent' | null
+    'project' | 'team' | 'accounts' | 'watcher' | 'memory' | 'newTask' | 'search' | 'reviews' | 'monitor' | 'agent' | 'import' | null
   >(null)
   const [query, setQuery] = useState(''),
     [explorerOpen, setExplorerOpen] = useState(true),
@@ -495,10 +496,17 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
                   <h1>Quadro de tarefas</h1>
                   <span>{project?.name}</span>
                 </div>
-                <button className="btn-primary" onClick={() => setDialog('newTask')}>
-                  <Icon name="plus" size={14} />
-                  Nova tarefa
-                </button>
+                <div className="flex items-center gap-2">
+                  {me?.role === 'admin' && (
+                    <button className="btn-ghost" onClick={() => setDialog('import')} title="Trazer tarefas de outro quadro (JSON)">
+                      Importar
+                    </button>
+                  )}
+                  <button className="btn-primary" onClick={() => setDialog('newTask')}>
+                    <Icon name="plus" size={14} />
+                    Nova tarefa
+                  </button>
+                </div>
               </header>
               <Board projectId={projectId} />
             </div>
@@ -551,6 +559,9 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
       {dialog === 'accounts' && <AccountsDialog onClose={() => setDialog(null)} />}{' '}
       {dialog === 'watcher' && projectId && <WatcherDialog projectId={projectId} onClose={() => setDialog(null)} />}{' '}
       {dialog === 'memory' && projectId && <MemoryDialog projectId={projectId} onClose={() => setDialog(null)} />}
+      {dialog === 'import' && projectId && (
+        <ImportDialog projectId={projectId} projectName={project?.name ?? ''} onClose={() => setDialog(null)} />
+      )}
       {dialog === 'agent' && <AgentDialog onClose={() => setDialog(null)} />}
       {dialog === 'monitor' && projectId && <MonitorDialog projectId={projectId} onClose={() => setDialog(null)} />}
       {dialog === 'reviews' && projectId && <ReviewsDialog projectId={projectId} onClose={() => setDialog(null)} />}

@@ -465,6 +465,13 @@ const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX monitor_events_project ON monitor_events(project_id, id);
+  `,
+  // 14: tasks importadas de outro quadro: o código delas lá (ex.: J15) e uma impressão digital do
+  // cartão, para reimportar sem duplicar nem desfazer o que a equipe mudou no Harpia.
+  `
+  ALTER TABLE tasks ADD COLUMN external_id TEXT;
+  ALTER TABLE tasks ADD COLUMN external_hash TEXT;
+  CREATE UNIQUE INDEX tasks_external ON tasks(project_id, external_id) WHERE external_id IS NOT NULL;
   `
 ]
 

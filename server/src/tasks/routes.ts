@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { TASK_STATUSES, type Task, type TaskEvent } from '../../../shared/types.ts'
 import type { AppContext } from '../context.ts'
-import { requireUser } from '../auth/guard.ts'
-import { getUser } from '../auth/users.ts'
+import { requireAdmin, requireUser } from '../auth/guard.ts'
+import { getUser, listUsers } from '../auth/users.ts'
 import { transaction } from '../db/index.ts'
 import { HttpError, parse, parseId } from '../http/errors.ts'
 import { getProject } from '../projects/store.ts'
@@ -20,6 +20,7 @@ import {
   removeParticipant,
   updateTaskRow
 } from './store.ts'
+import { existingByExternal, importSchema, planImport, type ImportPlan } from './import.ts'
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -92,6 +93,97 @@ export function registerTaskRoutes(app: FastifyInstance, ctx: AppContext): void 
       return { taskId: created.id, events: [event] }
     })
     return { task: publish(taskId, events).task }
+  })
+
+  // Importar um quadro de outro lugar (o arquivo pode ter perto de 1 MB).
+  const IMPORT_BODY_LIMIT = 8 * 1024 * 1024
+  const summary = (plan: ImportPlan) => ({
+    create: plan.create,
+    update: plan.update,
+    unchanged: plan.unchanged,
+    byStatus: plan.byStatus,
+    unknownOwners: plan.unknownOwners,
+    invalid: plan.invalid,
+    skippedDone: plan.skippedDone
+  })
+  const loadImport = (request: { params: unknown; body: unknown }) => {
+    const projectId = parseId((request.params as { id: string }).id)
+    if (!getProject(ctx.db, projectId)) throw new HttpError(404, 'Projeto não encontrado.')
+    const { tarefas, incluirFeitas } = parse(importSchema, request.body)
+    return { projectId, plan: planImport(tarefas, listUsers(ctx.db), existingByExternal(ctx.db, projectId), incluirFeitas) }
+  }
+
+  // O que a importação vai fazer, sem gravar nada.
+  app.post('/api/projects/:id/import/preview', { bodyLimit: IMPORT_BODY_LIMIT }, async (request) => {
+    requireAdmin(request)
+    return { plan: summary(loadImport(request).plan) }
+  })
+
+  // Cria as tasks novas e atualiza as que mudaram na origem, numa transação só; cada criação e
+  // mudança vira evento no histórico da task e chega ao vivo para a equipe.
+  app.post('/api/projects/:id/import', { bodyLimit: IMPORT_BODY_LIMIT }, async (request) => {
+    const user = requireAdmin(request)
+    const { projectId, plan } = loadImport(request)
+    const touched = transaction(ctx.db, () => {
+      const now = ctx.now()
+      const changes: { taskId: number; events: TaskEvent[] }[] = []
+      const mark = (taskId: number, externalId: string, hash: string) =>
+        ctx.db.prepare('UPDATE tasks SET external_id = ?, external_hash = ? WHERE id = ?').run(externalId, hash, taskId)
+      for (const item of plan.cards) {
+        if (item.action === 'unchanged') continue
+        const events: TaskEvent[] = []
+        const log = (taskId: number, type: TaskEvent['type'], data: Record<string, unknown>) =>
+          events.push(insertEvent(ctx.db, { taskId, actorId: user.id, type, data, now }))
+        if (item.action === 'create') {
+          const created = insertTask(ctx.db, { projectId, title: item.title, description: item.description, ownerId: item.ownerId, createdBy: user.id, now })
+          mark(created.id, item.card.id, item.hash)
+          log(created.id, 'created', { ownerId: item.ownerId, importedFrom: item.card.id })
+          if (item.status !== 'backlog') {
+            updateTaskRow(
+              ctx.db,
+              created.id,
+              { status: item.status, position: endOfColumn(ctx.db, projectId, item.status), closedAt: item.status === 'done' ? now.toISOString() : null },
+              now
+            )
+            log(created.id, 'status_changed', { from: 'backlog', to: item.status, reason: 'import' })
+          }
+          changes.push({ taskId: created.id, events })
+          continue
+        }
+        const before = item.existing
+        if (!before) continue
+        const fields: Parameters<typeof updateTaskRow>[2] = {}
+        const edited: string[] = []
+        if (before.title !== item.title) {
+          fields.title = item.title
+          edited.push('title')
+        }
+        if (before.description !== item.description) {
+          fields.description = item.description
+          edited.push('description')
+        }
+        if (before.status !== item.status) {
+          fields.status = item.status
+          fields.position = endOfColumn(ctx.db, projectId, item.status)
+          fields.closedAt = item.status === 'done' ? now.toISOString() : null
+        }
+        if (before.ownerId !== item.ownerId) fields.ownerId = item.ownerId
+        updateTaskRow(ctx.db, before.id, fields, now)
+        mark(before.id, item.card.id, item.hash)
+        if (edited.length) log(before.id, 'edited', { fields: edited, reason: 'import' })
+        if (before.status !== item.status) log(before.id, 'status_changed', { from: before.status, to: item.status, reason: 'import' })
+        if (before.ownerId !== item.ownerId) {
+          log(before.id, 'owner_changed', { from: before.ownerId, to: item.ownerId, reason: 'import' })
+          if (item.ownerId !== null && addParticipant(ctx.db, before.id, item.ownerId, now)) {
+            log(before.id, 'participant_joined', { userId: item.ownerId, reason: 'owner' })
+          }
+        }
+        changes.push({ taskId: before.id, events })
+      }
+      return changes
+    })
+    for (const change of touched) publish(change.taskId, change.events)
+    return { plan: summary(plan) }
   })
 
   app.get('/api/tasks/:id', async (request) => {

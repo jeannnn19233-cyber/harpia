@@ -55,6 +55,16 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   return data as T
 }
 
+export interface ImportSummary {
+  create: number
+  update: number
+  unchanged: number
+  byStatus: Record<TaskStatus, number>
+  unknownOwners: string[]
+  invalid: { id: string; reason: string }[]
+  skippedDone: number
+}
+
 export interface VaultStatus {
   folder: string
   disabledReason: string | null
@@ -89,6 +99,10 @@ export const api = {
   recloneProject: (id: number) => request<{ project: Project }>('POST', `/api/projects/${id}/clone`, {}),
 
   tasks: (projectId: number) => request<{ tasks: Task[] }>('GET', `/api/projects/${projectId}/tasks`),
+  importPreview: (projectId: number, board: unknown) =>
+    request<{ plan: ImportSummary }>('POST', `/api/projects/${projectId}/import/preview`, board),
+  importBoard: (projectId: number, board: unknown) =>
+    request<{ plan: ImportSummary }>('POST', `/api/projects/${projectId}/import`, board),
   createTask: (projectId: number, input: { title: string; description?: string; ownerId?: number | null }) =>
     request<{ task: Task }>('POST', `/api/projects/${projectId}/tasks`, input),
   task: (id: number) => request<TaskDetail>('GET', `/api/tasks/${id}`),
