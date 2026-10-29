@@ -1,5 +1,8 @@
-import type { ChatItem, PermissionMode, User } from '../../../shared/types.ts'
+import { CHAT_PROVIDER_LABELS, type ChatItem, type PermissionMode, type User } from '../../../shared/types.ts'
 import { getUser } from '../auth/users.ts'
+import { getMemory } from '../memory/store.ts'
+import { getProject } from '../projects/store.ts'
+import { getTask } from '../tasks/store.ts'
 import type { AppContext } from '../context.ts'
 import { HttpError } from '../http/errors.ts'
 import type { ProviderAdapter, ProviderFactory, ProviderHooks } from './providers/types.ts'
@@ -141,6 +144,34 @@ export class ChatManager {
     void chatId
   }
 
+  // O que o agente precisa saber ao começar: a task, a branch e a memória do projeto.
+  instructionsFor(chat: StoredChat): string | null {
+    const task = chat.taskId ? getTask(this.ctx.db, chat.taskId) : null
+    if (!task) return null
+    const project = getProject(this.ctx.db, task.projectId)
+    const memory = getMemory(this.ctx.db, task.projectId)
+    const parts = [
+      `Você está trabalhando pelo Harpia, o workspace da equipe, na task T-${task.number} "${task.title}"` +
+        (project ? ` do projeto ${project.name}.` : '.'),
+      task.description.trim() ? `Descrição da task:\n${task.description.trim()}` : '',
+      `Você está na branch ${chat.branch ?? '(desconhecida)'}, numa cópia do código só desta pessoa. Faça commits normalmente; ` +
+        'para entregar, a pessoa usa "Abrir PR" no Harpia. Não faça push nem abra pull requests por conta própria.',
+      memory.body ? `Memória do projeto (escrita pela equipe):\n${memory.body}` : ''
+    ]
+    return parts.filter(Boolean).join('\n\n')
+  }
+
+  // Avisa a dona da conversa fora do Harpia (Telegram), só se ela não estiver com o Harpia aberto.
+  private notifyOwner(chatId: number, text: (where: string, provider: string) => string): void {
+    const chat = getChat(this.ctx.db, chatId)
+    if (!chat) return
+    const task = chat.taskId ? getTask(this.ctx.db, chat.taskId) : null
+    const where = task ? `T-${task.number} "${task.title}"` : 'uma conversa'
+    void this.ctx.notifier.notifyUsers([chat.userId], text(where, CHAT_PROVIDER_LABELS[chat.provider]) + this.ctx.notifier.link('/'), {
+      onlyOffline: true
+    })
+  }
+
   private ensureRuntime(chat: StoredChat): Runtime {
     const existing = this.runtimes.get(chat.id)
     if (existing) return existing
@@ -159,6 +190,7 @@ export class ChatManager {
       cwd: chat.cwd,
       resumeId: chat.providerSessionId,
       permissionMode: chat.permissionMode,
+      instructions: this.instructionsFor(chat),
       hooks: this.hooksFor(chat.id, runtime)
     })
     this.runtimes.set(chat.id, runtime)
@@ -221,6 +253,7 @@ export class ChatManager {
         touch()
         const item = this.addItem(chatId, { kind: 'approval', title, detail, status: 'pending', decidedBy: null })
         this.setStatus(chatId, 'waiting')
+        this.notifyOwner(chatId, (where, provider) => `Seu ${provider} está esperando aprovação em ${where}:\n${title}: ${detail}`)
         return new Promise((resolve) => {
           runtime.approvals.set(item.id, resolve)
           signal?.addEventListener('abort', () => {
@@ -245,6 +278,9 @@ export class ChatManager {
         this.expireApprovals(chatId, runtime)
         if (error) this.addItem(chatId, { kind: 'error', text: error })
         this.setStatus(chatId, 'idle')
+        this.notifyOwner(chatId, (where, provider) =>
+          error ? `Seu ${provider} parou com erro em ${where}: ${error}` : `Seu ${provider} terminou em ${where}.`
+        )
       },
       onExit: (error) => {
         if (!current()) return

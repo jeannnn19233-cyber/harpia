@@ -12,6 +12,7 @@ export async function resync(): Promise<void> {
   if (projectId) {
     store.setTasks((await api.tasks(projectId)).tasks)
     store.upsertPulls((await api.projectPulls(projectId)).pullRequests)
+    store.upsertFindings((await api.findings(projectId)).findings)
   }
   const status = await api.agentsStatus()
   store.setAgentsStatus(status)

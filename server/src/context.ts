@@ -1,6 +1,7 @@
 import type { Db } from './db/index.ts'
 import type { AgentSystem } from './agents/system.ts'
 import type { GitHubClient } from './github/client.ts'
+import type { Notifier } from './notify/notifier.ts'
 import type { GitRunner } from './projects/git.ts'
 import type { RealtimeHub } from './realtime/hub.ts'
 
@@ -23,6 +24,10 @@ export interface AppConfig {
   maxSessionsPerUser: number
   // De quantos em quantos segundos o servidor confere no GitHub se os PRs tiveram merge.
   prPollSeconds: number
+  // Vigia: intervalo entre varreduras e limites para "task parada" e "Revisão sem PR".
+  watcherIntervalSeconds: number
+  staleHours: number
+  reviewHours: number
 }
 
 export interface AppContext {
@@ -32,5 +37,6 @@ export interface AppContext {
   git: GitRunner
   agents: AgentSystem
   github: GitHubClient
+  notifier: Notifier
   now: () => Date
 }

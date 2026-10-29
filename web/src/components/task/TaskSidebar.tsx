@@ -14,6 +14,7 @@ import { fullDate, timeAgo } from '../../lib/format.ts'
 import { useHarpia } from '../../lib/store.ts'
 import { Avatar } from '../Avatar.tsx'
 import { DeliverySection } from './Delivery.tsx'
+import { FindingCard, useOpenFindings } from '../Watcher.tsx'
 
 function describe(event: TaskEvent, users: Record<number, User>): string {
   const name = (id: unknown) => (typeof id === 'number' ? (users[id]?.name ?? 'alguém') : 'ninguém')
@@ -26,6 +27,8 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
       const labels = fields.map((field) => (field === 'title' ? 'o título' : 'a descrição'))
       return `editou ${labels.join(' e ')}`
     }
+    case 'watcher_notice':
+      return `avisou: ${String(event.data.message)}`
     case 'pr_opened':
       return `abriu o PR #${event.data.number}`
     case 'pr_updated':
@@ -119,6 +122,7 @@ export function TaskSidebar({ taskId }: { taskId: number }) {
   const [description, setDescription] = useState('')
   const [comment, setComment] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const findings = useOpenFindings(task?.projectId ?? null, taskId)
 
   useEffect(() => {
     if (task) setDescription(task.description)
@@ -218,6 +222,17 @@ export function TaskSidebar({ taskId }: { taskId: number }) {
             </ul>
           )}
         </section>
+
+        {findings.length > 0 && (
+          <section>
+            <h3 className="mb-2 text-xs font-semibold tracking-wide text-amber-400 uppercase">Avisos do vigia</h3>
+            <div className="space-y-2">
+              {findings.map((finding) => (
+                <FindingCard key={finding.id} finding={finding} compact />
+              ))}
+            </div>
+          </section>
+        )}
 
         <DeliverySection task={task} />
 

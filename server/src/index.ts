@@ -2,6 +2,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildApp } from './app.ts'
+import { createTelegramClient } from './notify/telegram.ts'
 
 // Arquivos criados pelo servidor (espelhos dos repositórios, configurações) nunca ficam
 // graváveis por outros usuários, incluindo os usuários dos agentes.
@@ -25,8 +26,12 @@ const { app } = await buildApp({
     setupCode: process.env.HARPIA_SETUP_CODE?.trim() || null,
     terminalsEnabled: process.env.HARPIA_TERMINALS === 'on',
     maxSessionsPerUser: Number(process.env.HARPIA_MAX_SESSIONS_PER_USER ?? 5),
-    prPollSeconds: Number(process.env.HARPIA_PR_POLL_SECONDS ?? 60)
+    prPollSeconds: Number(process.env.HARPIA_PR_POLL_SECONDS ?? 60),
+    watcherIntervalSeconds: Number(process.env.HARPIA_WATCHER_INTERVAL_SECONDS ?? 300),
+    staleHours: Number(process.env.HARPIA_STALE_HOURS ?? 48),
+    reviewHours: Number(process.env.HARPIA_REVIEW_HOURS ?? 24)
   },
+  telegram: process.env.HARPIA_TELEGRAM_BOT_TOKEN ? createTelegramClient(process.env.HARPIA_TELEGRAM_BOT_TOKEN) : null,
   logger: { level: process.env.HARPIA_LOG_LEVEL ?? 'info' }
 })
 

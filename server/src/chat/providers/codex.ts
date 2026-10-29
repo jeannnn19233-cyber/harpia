@@ -194,7 +194,12 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
     return (async () => {
       await request('initialize', { clientInfo: { name: 'harpia', title: 'Harpia', version: '0.1.0' }, capabilities: {} })
       write({ jsonrpc: '2.0', method: 'initialized' })
-      const settings = { cwd: input.cwd, approvalPolicy: APPROVAL_POLICY[input.permissionMode], sandbox: SANDBOX }
+      const settings = {
+        cwd: input.cwd,
+        approvalPolicy: APPROVAL_POLICY[input.permissionMode],
+        sandbox: SANDBOX,
+        ...(input.instructions ? { developerInstructions: input.instructions } : {})
+      }
       const response = (await (threadId
         ? request('thread/resume', { threadId, ...settings, excludeTurns: true })
         : request('thread/start', settings))) as { thread: { id: string } }

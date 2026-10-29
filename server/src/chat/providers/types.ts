@@ -30,6 +30,8 @@ export interface ProviderInput {
   cwd: string
   resumeId: string | null
   permissionMode: PermissionMode
+  // Contexto que o agente recebe ao começar: a task, a branch e a memória do projeto.
+  instructions: string | null
   hooks: ProviderHooks
 }
 

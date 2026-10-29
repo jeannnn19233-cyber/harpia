@@ -7,9 +7,13 @@ import type {
   Chat,
   ChatItem,
   ChatProvider,
+  Finding,
   Invite,
+  NotificationSettings,
   PermissionMode,
+  ProjectMemory,
   PullRequest,
+  SimilarTask,
   Project,
   Task,
   TaskDetail,
@@ -103,5 +107,21 @@ export const api = {
   openPull: (taskId: number, input: { title: string; body: string; commitMessage?: string }) =>
     request<{ pullRequest: PullRequest; created: boolean }>('POST', `/api/tasks/${taskId}/pull-requests`, input),
   refreshPulls: (taskId: number) =>
-    request<{ pullRequests: PullRequest[] }>('POST', `/api/tasks/${taskId}/pull-requests/refresh`, {})
+    request<{ pullRequests: PullRequest[] }>('POST', `/api/tasks/${taskId}/pull-requests/refresh`, {}),
+
+  findings: (projectId: number) => request<{ findings: Finding[] }>('GET', `/api/projects/${projectId}/findings`),
+  checkFindings: (projectId: number) => request<{ findings: Finding[] }>('POST', `/api/projects/${projectId}/findings/check`, {}),
+  dismissFinding: (id: number) => request<{ finding: Finding }>('POST', `/api/findings/${id}/dismiss`, {}),
+  similarTasks: (projectId: number, text: string, excludeTaskId?: number) =>
+    request<{ tasks: SimilarTask[] }>(
+      'GET',
+      `/api/projects/${projectId}/similar-tasks?q=${encodeURIComponent(text)}${excludeTaskId ? `&exclude=${excludeTaskId}` : ''}`
+    ),
+  memory: (projectId: number) => request<{ memory: ProjectMemory }>('GET', `/api/projects/${projectId}/memory`),
+  saveMemory: (projectId: number, body: string) =>
+    request<{ memory: ProjectMemory }>('PUT', `/api/projects/${projectId}/memory`, { body }),
+  notifications: () => request<{ settings: NotificationSettings }>('GET', '/api/me/notifications'),
+  linkTelegram: () =>
+    request<{ link: { code: string; url: string | null; expiresAt: string } }>('POST', '/api/me/notifications/telegram', {}),
+  unlinkTelegram: () => request<{ ok: true }>('DELETE', '/api/me/notifications/telegram')
 }

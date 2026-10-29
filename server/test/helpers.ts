@@ -7,6 +7,7 @@ import type { AppContext } from '../src/context.ts'
 import type { AgentSystem } from '../src/agents/system.ts'
 import type { ProviderFactory } from '../src/chat/providers/types.ts'
 import type { GitHubClient } from '../src/github/client.ts'
+import type { TelegramClient } from '../src/notify/telegram.ts'
 import type { GitRunner } from '../src/projects/git.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 
@@ -49,6 +50,8 @@ export async function startServer(
     agents?: AgentSystem
     chatProviders?: ProviderFactory
     github?: GitHubClient
+    telegram?: TelegramClient
+    now?: () => Date
     dataDir?: string
     allowedOrigins?: string[]
     setupCode?: string
@@ -67,8 +70,14 @@ export async function startServer(
       setupCode: options.setupCode ?? null,
       terminalsEnabled: options.terminalsEnabled ?? false,
       maxSessionsPerUser: options.maxSessionsPerUser ?? 5,
-      prPollSeconds: 3600
+      prPollSeconds: 3600,
+      watcherIntervalSeconds: 3600,
+      staleHours: 48,
+      reviewHours: 24
     },
+    telegram: options.telegram ?? null,
+    pollTelegram: false,
+    now: options.now,
     github: options.github ?? offlineGitHub,
     git: options.git ?? fakeGit,
     agents: options.agents ?? new FakeAgentSystem(),

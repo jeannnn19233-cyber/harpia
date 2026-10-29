@@ -33,6 +33,9 @@ Em **Environment Variables**:
 | `HARPIA_GITHUB_TOKEN` | token do GitHub (marque como secreto) | Para clonar repositórios privados. |
 | `HARPIA_TERMINALS` | `on` | Liga os terminais com agentes de IA (fase 3). **Só ligue depois do checklist da seção "Ligar os agentes de IA".** |
 | `HARPIA_MAX_SESSIONS_PER_USER` | `5` (padrão) | Quantos agentes cada pessoa pode ter abertos ao mesmo tempo. |
+| `HARPIA_TELEGRAM_BOT_TOKEN` | token do bot (marque como secreto) | Avisos no Telegram. Crie o bot com o [@BotFather](https://t.me/BotFather). |
+| `HARPIA_STALE_HOURS` | `48` (padrão) | Depois de quantas horas sem atividade o vigia avisa que a task está parada. |
+| `HARPIA_REVIEW_HOURS` | `24` (padrão) | Depois de quantas horas em Revisão sem PR o vigia pergunta se dá para concluir. |
 
 Para gerar o código de configuração: `openssl rand -base64 24`.
 

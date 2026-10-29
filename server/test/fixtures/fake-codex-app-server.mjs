@@ -11,6 +11,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (message.method === 'initialized') return
   if (message.method === 'thread/start') {
     if (message.params.cwd !== process.env.EXPECTED_CWD) return send({ id: message.id, error: { message: `cwd errado: ${message.params.cwd}` } })
+    if (message.params.developerInstructions !== 'Task T-1') return send({ id: message.id, error: { message: 'sem contexto da task' } })
     return send({ id: message.id, result: { thread: { id: 'thread-novo' } } })
   }
   if (message.method === 'thread/resume') return send({ id: message.id, result: { thread: { id: message.params.threadId } } })

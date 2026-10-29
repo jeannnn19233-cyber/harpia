@@ -1,9 +1,10 @@
-import { useMemo, useState, type DragEvent, type FormEvent } from 'react'
-import { TASK_STATUSES, TASK_STATUS_LABELS, type Task, type TaskStatus } from '../../../shared/types.ts'
+import { useEffect, useMemo, useState, type DragEvent, type FormEvent } from 'react'
+import { TASK_STATUSES, TASK_STATUS_LABELS, type SimilarTask, type Task, type TaskStatus } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { timeAgo } from '../lib/format.ts'
 import { useHarpia } from '../lib/store.ts'
 import { Avatar } from './Avatar.tsx'
+import { useOpenFindings } from './Watcher.tsx'
 
 const COLUMN_ACCENT: Record<TaskStatus, string> = {
   backlog: 'bg-zinc-500',
@@ -25,6 +26,7 @@ function positionBefore(column: Task[], targetId: number | null, movingId: numbe
 
 function TaskCard({ task, onDragStart }: { task: Task; onDragStart: (event: DragEvent, task: Task) => void }) {
   const { users, online, openTask, chats, pulls } = useHarpia()
+  const findings = useOpenFindings(task.projectId, task.id)
   const taskPulls = Object.values(pulls).filter((pull) => pull.taskId === task.id && pull.state !== 'closed')
   // Conversas com agentes nesta task: quem está trabalhando ou esperando aprovação.
   const busyChats = Object.values(chats).filter(
@@ -48,6 +50,11 @@ function TaskCard({ task, onDragStart }: { task: Task; onDragStart: (event: Drag
       <div className="flex items-start gap-2">
         <span className="mt-0.5 shrink-0 font-mono text-xs text-zinc-500">T-{task.number}</span>
         <span className="text-sm leading-snug font-medium">{task.title}</span>
+        {findings.length > 0 && (
+          <span className="ml-auto shrink-0 text-amber-400" title={findings.map((finding) => finding.message).join('\n')}>
+            ⚠
+          </span>
+        )}
       </div>
       {taskPulls.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
@@ -95,6 +102,23 @@ function NewTaskForm({ projectId }: { projectId: number }) {
   const [title, setTitle] = useState('')
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [similar, setSimilar] = useState<SimilarTask[]>([])
+  const openTask = useHarpia((state) => state.openTask)
+
+  // Enquanto a pessoa digita, mostra tasks parecidas para evitar criar uma repetida.
+  useEffect(() => {
+    if (title.trim().length < 4) {
+      setSimilar([])
+      return
+    }
+    const timer = setTimeout(() => {
+      api
+        .similarTasks(projectId, title)
+        .then(({ tasks }) => setSimilar(tasks))
+        .catch(() => setSimilar([]))
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [title, projectId])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -102,6 +126,7 @@ function NewTaskForm({ projectId }: { projectId: number }) {
     try {
       await api.createTask(projectId, { title })
       setTitle('')
+      setSimilar([])
       setError(null)
     } catch (err) {
       setError((err as Error).message)
@@ -125,6 +150,20 @@ function NewTaskForm({ projectId }: { projectId: number }) {
         onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
         autoFocus
       />
+      {similar.length > 0 && (
+        <div className="rounded-md border border-amber-900/60 bg-amber-950/20 px-2 py-1.5 text-xs">
+          <p className="mb-1 text-amber-300">Já existem tasks parecidas:</p>
+          <ul className="space-y-0.5">
+            {similar.map((task) => (
+              <li key={task.id}>
+                <button type="button" className="text-left text-zinc-300 hover:underline" onClick={() => openTask(task.id)}>
+                  T-{task.number} {task.title} <span className="text-zinc-500">({TASK_STATUS_LABELS[task.status]})</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {error && <p className="text-xs text-rose-400">{error}</p>}
       <div className="flex gap-2">
         <button className="btn-primary flex-1 py-1.5">Criar</button>

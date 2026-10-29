@@ -7,6 +7,7 @@ import { AccountsDialog } from './AccountsDialog.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Board } from './Board.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
+import { MemoryDialog, useOpenFindings, WatcherDialog } from './Watcher.tsx'
 import { TaskWorkspace } from './task/TaskWorkspace.tsx'
 
 function CloneBadge({ project }: { project: Project }) {
@@ -30,7 +31,8 @@ function CloneBadge({ project }: { project: Project }) {
 
 export function Workspace({ onLogout }: { onLogout: () => void }) {
   const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus } = useHarpia()
-  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | null>(null)
+  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | null>(null)
+  const openFindings = useOpenFindings(projectId)
 
   useEffect(() => startRealtime(), [])
 
@@ -42,6 +44,8 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
       .then(({ tasks }) => current && setTasks(tasks))
       .then(() => api.projectPulls(projectId))
       .then((result) => current && result && useHarpia.getState().upsertPulls(result.pullRequests))
+      .then(() => api.findings(projectId))
+      .then((result) => current && result && useHarpia.getState().upsertFindings(result.findings))
       .catch(() => undefined)
     return () => {
       current = false
@@ -71,6 +75,11 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
         <button className="btn-ghost py-1.5" onClick={() => setDialog('project')}>
           + Projeto
         </button>
+        {projectId && (
+          <button className="btn-ghost py-1.5" onClick={() => setDialog('memory')} title="O que todo agente sabe ao começar">
+            Memória
+          </button>
+        )}
         {project && <CloneBadge project={project} />}
 
         <div className="ml-auto flex items-center gap-3">
@@ -80,6 +89,14 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
               <Avatar key={user.id} user={user} size="sm" online />
             ))}
           </div>
+          {projectId && (
+            <button className="btn-ghost py-1.5" onClick={() => setDialog('watcher')}>
+              Vigia
+              {openFindings.length > 0 && (
+                <span className="rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-zinc-950">{openFindings.length}</span>
+              )}
+            </button>
+          )}
           {agentsStatus?.enabled && (
             <button className="btn-ghost py-1.5" onClick={() => setDialog('accounts')}>
               Minhas IAs
@@ -116,6 +133,8 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
       )}
       {dialog === 'team' && <TeamDialog onClose={() => setDialog(null)} />}
       {dialog === 'accounts' && <AccountsDialog onClose={() => setDialog(null)} />}
+      {dialog === 'watcher' && projectId && <WatcherDialog projectId={projectId} onClose={() => setDialog(null)} />}
+      {dialog === 'memory' && projectId && <MemoryDialog projectId={projectId} onClose={() => setDialog(null)} />}
 
     </div>
   )

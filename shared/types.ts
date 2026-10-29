@@ -52,6 +52,7 @@ export interface Task {
 }
 
 export type TaskEventType =
+  | 'watcher_notice'
   | 'pr_opened'
   | 'pr_updated'
   | 'pr_merged'
@@ -208,6 +209,57 @@ export interface ChangedFile {
   deletions: number | null
 }
 
+// Vigia (fase 4): avisos sobre o andamento das tasks.
+export type FindingKind = 'stale' | 'review_without_pr' | 'file_overlap' | 'duplicate'
+
+export const FINDING_LABELS: Record<FindingKind, string> = {
+  stale: 'Task parada',
+  review_without_pr: 'Revisão sem PR',
+  file_overlap: 'Mesmos arquivos',
+  duplicate: 'Tasks parecidas'
+}
+
+export interface Finding {
+  id: number
+  projectId: number
+  kind: FindingKind
+  taskIds: number[]
+  userIds: number[]
+  message: string
+  details: Record<string, unknown>
+  // resolved: o vigia viu que o problema acabou; dismissed: alguém dispensou o aviso.
+  status: 'open' | 'dismissed' | 'resolved'
+  dismissedBy: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SimilarTask {
+  id: number
+  number: number
+  title: string
+  status: TaskStatus
+}
+
+// Memória do projeto: o que a equipe quer que todo agente saiba ao começar uma conversa.
+export const PROJECT_MEMORY_LIMIT = 3000
+
+export interface ProjectMemory {
+  projectId: number
+  body: string
+  updatedBy: number | null
+  updatedAt: string | null
+}
+
+export interface NotificationSettings {
+  telegram: {
+    // O servidor tem um bot do Telegram configurado.
+    available: boolean
+    botUsername: string | null
+    linked: boolean
+  }
+}
+
 // Mensagens enviadas pelo servidor em tempo real (WebSocket).
 export type RealtimeMessage =
   | { type: 'presence'; userIds: number[] }
@@ -219,3 +271,5 @@ export type RealtimeMessage =
   | { type: 'chat'; chat: Chat }
   | { type: 'chat_item'; item: ChatItem }
   | { type: 'pull_request'; pullRequest: PullRequest }
+  | { type: 'finding'; finding: Finding }
+  | { type: 'memory'; memory: ProjectMemory }

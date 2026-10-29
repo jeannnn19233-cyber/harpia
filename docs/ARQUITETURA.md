@@ -19,7 +19,8 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 | 1 | Login, convites, projetos (clone do repositório), quadro de tasks em tempo real, histórico e comentários, serviço 24h | **pronta** |
 | 3 | Na task, cada participante conversa com o próprio agente (Claude ou Codex) num chat, numa worktree própria; terminal embaixo do chat; a equipe acompanha tudo ao vivo | **pronta** |
 | 5 | GitHub: abrir PR pelo Harpia; task vai para "Feito" sozinha quando o PR tem merge | **pronta** |
-| 4 | Agente vigia: avisa task duplicada, gente mexendo nos mesmos arquivos, task parada há muito tempo, task pronta e ainda aberta; memória por projeto e avisos no Telegram (ideias do Hermes, veja [estudos/hermes.md](estudos/hermes.md)) | próxima |
+| 4 | Vigia: task parada, Revisão sem PR, tasks parecidas e pessoas mexendo nos mesmos arquivos; tasks parecidas ao criar; memória do projeto nas conversas; avisos no Telegram (ideias do Hermes, veja [estudos/hermes.md](estudos/hermes.md)) | **pronta** (parte sem IA) |
+| 4b | Partes com IA: julgar tasks parecidas, resumo de cada task concluída, sugestões de aprendizado para o `AGENTS.md` | depende de uma conta de IA para o vigia |
 | 2 | Chat de IA com Claude e Codex usando o login de cada pessoa | |
 
 ## Onde roda
@@ -164,6 +165,32 @@ servidor ──API do GitHub──▶ abre o PR e confere o merge
 ```
 
 O servidor nunca roda git dentro do repositório da pessoa e o agente nunca vê o token.
+
+## Regras de negócio da fase 4
+
+O vigia segue a ideia do Hermes de **regras fixas primeiro**: nada aqui usa IA, então não custa
+tokens nem depende da conta de ninguém. A cada 5 minutos (`HARPIA_WATCHER_INTERVAL_SECONDS`) ele
+confere cada projeto:
+
+| Aviso | Quando |
+|---|---|
+| Task parada | Em andamento ou Revisão sem atividade de pessoas nem de agentes há `HARPIA_STALE_HOURS` (48 h). Agente trabalhando conta como atividade. |
+| Revisão sem PR | Em Revisão, sem PR aberto, há `HARPIA_REVIEW_HOURS` (24 h). |
+| Tasks parecidas | Dois títulos abertos com pelo menos 2 palavras importantes em comum (sem acento, sem plural simples). |
+| Mesmos arquivos | Pessoas diferentes com o mesmo arquivo alterado nas suas cópias, na mesma task ou em tasks diferentes. |
+
+- Cada aviso tem uma impressão digital: não se repete e some sozinho quando o problema acaba.
+  Quem dispensa um aviso não volta a vê-lo enquanto o problema for o mesmo.
+- Avisos novos entram no histórico das tasks envolvidas (como "Harpia avisou…", sem contar como
+  atividade) e vão para o Telegram de quem está nelas.
+- **Tasks parecidas ao criar:** enquanto a pessoa digita o título, o Harpia mostra as tasks
+  parecidas (busca de texto FTS5 no SQLite).
+- **Memória do projeto:** texto de até 3 mil caracteres, editado pela equipe. Toda conversa nova
+  com um agente começa com a task (título e descrição), a branch, as regras de entrega e essa
+  memória. É um "retrato" do começo da conversa, como no Hermes.
+- **Telegram:** cada pessoa gera um código no Harpia e manda para o bot. Recebe os avisos do
+  vigia, o merge dos PRs e, quando não está com o Harpia aberto, "seu agente está esperando
+  aprovação" e "seu agente terminou".
 
 ## Uso do Orca
 

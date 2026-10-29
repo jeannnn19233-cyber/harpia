@@ -81,10 +81,19 @@ const { app } = await buildApp({
     setupCode: null,
     terminalsEnabled: true,
     maxSessionsPerUser: 5,
-    prPollSeconds: 60
+    prPollSeconds: 60,
+    watcherIntervalSeconds: 3600,
+    staleHours: 48,
+    reviewHours: 24
   },
   agents,
   github,
+  // Bot de mentira: aceita o vínculo e só guarda as mensagens.
+  telegram: {
+    getMe: async () => ({ username: 'harpia_teste_bot' }),
+    getUpdates: async () => [],
+    sendMessage: async () => {}
+  },
   chatProviders: scripted,
   git: fakeGit
 })

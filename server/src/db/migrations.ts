@@ -148,6 +148,61 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_pull_requests_task ON pull_requests(task_id);
   CREATE INDEX idx_pull_requests_state ON pull_requests(state);
+  `,
+  // Fase 4: vigia, memória do projeto, avisos e busca de texto nas tasks.
+  `
+  CREATE TABLE watcher_findings (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    fingerprint TEXT NOT NULL UNIQUE,
+    task_ids TEXT NOT NULL,
+    user_ids TEXT NOT NULL,
+    message TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL CHECK (status IN ('open', 'dismissed', 'resolved')),
+    dismissed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_findings_project ON watcher_findings(project_id, status);
+
+  CREATE TABLE project_memories (
+    project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE notification_targets (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    linked_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, platform)
+  );
+
+  CREATE TABLE notification_link_codes (
+    code_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
+
+  CREATE VIRTUAL TABLE tasks_fts USING fts5(
+    title, description, content='tasks', content_rowid='id', tokenize='unicode61 remove_diacritics 2'
+  );
+  CREATE TRIGGER tasks_fts_insert AFTER INSERT ON tasks BEGIN
+    INSERT INTO tasks_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
+  END;
+  CREATE TRIGGER tasks_fts_delete AFTER DELETE ON tasks BEGIN
+    INSERT INTO tasks_fts(tasks_fts, rowid, title, description) VALUES ('delete', old.id, old.title, old.description);
+  END;
+  CREATE TRIGGER tasks_fts_update AFTER UPDATE OF title, description ON tasks BEGIN
+    INSERT INTO tasks_fts(tasks_fts, rowid, title, description) VALUES ('delete', old.id, old.title, old.description);
+    INSERT INTO tasks_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
+  END;
+  INSERT INTO tasks_fts(tasks_fts) VALUES ('rebuild');
   `
 ]
 

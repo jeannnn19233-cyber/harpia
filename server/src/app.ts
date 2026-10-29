@@ -19,12 +19,16 @@ import type { AppConfig, AppContext } from './context.ts'
 import { openDatabase } from './db/index.ts'
 import { registerErrorHandler } from './http/errors.ts'
 import { createGitHubClient, type GitHubClient } from './github/client.ts'
+import { Notifier } from './notify/notifier.ts'
+import type { TelegramClient } from './notify/telegram.ts'
 import { systemGit, type GitRunner } from './projects/git.ts'
 import { registerPullRoutes } from './pulls/routes.ts'
 import { registerProjectRoutes } from './projects/routes.ts'
 import { RealtimeHub } from './realtime/hub.ts'
 import { registerRealtimeRoutes } from './realtime/routes.ts'
 import { registerTaskRoutes } from './tasks/routes.ts'
+import { registerWatcherRoutes } from './watcher/routes.ts'
+import { Watcher } from './watcher/watcher.ts'
 
 export interface BuildOptions {
   config: AppConfig
@@ -33,6 +37,10 @@ export interface BuildOptions {
   agents?: AgentSystem
   chatProviders?: ProviderFactory
   github?: GitHubClient
+  // Bot do Telegram para os avisos. null desliga.
+  telegram?: TelegramClient | null
+  // false: o servidor não lê sozinho as mensagens do bot (os testes chamam pollOnce).
+  pollTelegram?: boolean
   now?: () => Date
 }
 
@@ -66,8 +74,18 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     github:
       options.github ??
       createGitHubClient({ token: process.env.HARPIA_GITHUB_TOKEN ?? null, apiUrl: process.env.HARPIA_GITHUB_API_URL }),
+    notifier: null as unknown as Notifier,
     now: options.now ?? (() => new Date())
   }
+  ctx.notifier = new Notifier({
+    db: ctx.db,
+    now: ctx.now,
+    telegram: options.telegram ?? null,
+    isOnline: (userId) => ctx.hub.onlineUserIds().includes(userId),
+    publicUrl: options.config.allowedOrigins[0] ?? null,
+    autoPoll: options.pollTelegram ?? true,
+    warn: (error, message) => app.log.warn(error, message)
+  })
 
   registerErrorHandler(app)
   await app.register(cookie)
@@ -88,6 +106,12 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     })
   registerChatRoutes(app, ctx, new ChatManager(ctx, providers))
   registerPullRoutes(app, ctx)
+  registerWatcherRoutes(
+    app,
+    ctx,
+    new Watcher(ctx, { staleHours: options.config.staleHours, reviewHours: options.config.reviewHours }),
+    options.config.watcherIntervalSeconds
+  )
   registerRealtimeRoutes(app, ctx)
 
   const webDir = options.config.webDir

@@ -92,6 +92,12 @@ export function registerPullRoutes(app: FastifyInstance, ctx: AppContext): void 
     if (!result) return
     publishPull(result.updated)
     publishTaskChange(ctx, task.id, result.events)
+    const done = result.events.some((event) => event.type === 'status_changed')
+    const people = [...new Set([pull.userId, ...task.participantIds, ...(task.ownerId ? [task.ownerId] : [])])]
+    const text = merged
+      ? `O PR #${pull.number} teve merge${done ? ` e a task T-${task.number} "${task.title}" foi concluída.` : ` (T-${task.number} "${task.title}").`}`
+      : `O PR #${pull.number} de T-${task.number} "${task.title}" foi fechado sem merge.`
+    await ctx.notifier.notifyUsers(people, text)
   }
 
   let checking = false

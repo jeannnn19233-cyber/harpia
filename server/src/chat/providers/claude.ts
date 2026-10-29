@@ -237,7 +237,9 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
         permissionMode: SDK_MODES[input.permissionMode],
         allowDangerouslySkipPermissions: true,
         canUseTool,
-        systemPrompt: { type: 'preset', preset: 'claude_code' },
+        systemPrompt: input.instructions
+          ? { type: 'preset', preset: 'claude_code', append: input.instructions }
+          : { type: 'preset', preset: 'claude_code' },
         tools: { type: 'preset', preset: 'claude_code' },
         settingSources: ['user', 'project', 'local'],
         pathToClaudeCodeExecutable: CLAUDE_BIN,

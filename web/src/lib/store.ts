@@ -4,6 +4,7 @@ import type {
   AgentsStatus,
   Chat,
   ChatItem,
+  Finding,
   Project,
   PullRequest,
   RealtimeMessage,
@@ -28,6 +29,7 @@ interface HarpiaState {
   // Itens de cada conversa já carregada (as outras ainda não foram abertas).
   chatItems: Record<number, ChatItem[]>
   pulls: Record<number, PullRequest>
+  findings: Record<number, Finding>
 
   setMe(me: User | null): void
   setUsers(users: User[]): void
@@ -44,6 +46,7 @@ interface HarpiaState {
   upsertChats(chats: Chat[]): void
   setChatItems(chatId: number, items: ChatItem[]): void
   upsertPulls(pulls: PullRequest[]): void
+  upsertFindings(findings: Finding[]): void
   apply(message: RealtimeMessage): void
 }
 
@@ -79,6 +82,7 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   chats: {},
   chatItems: {},
   pulls: {},
+  findings: {},
 
   setMe: (me) => set({ me }),
   setUsers: (users) => set({ users: Object.fromEntries(users.map((user) => [user.id, user])) }),
@@ -115,6 +119,8 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
   upsertChats: (chats) =>
     set((state) => ({ chats: { ...state.chats, ...Object.fromEntries(chats.map((chat) => [chat.id, chat])) } })),
   setChatItems: (chatId, items) => set((state) => ({ chatItems: { ...state.chatItems, [chatId]: items } })),
+  upsertFindings: (findings) =>
+    set((state) => ({ findings: { ...state.findings, ...Object.fromEntries(findings.map((finding) => [finding.id, finding])) } })),
   upsertPulls: (pulls) =>
     set((state) => ({ pulls: { ...state.pulls, ...Object.fromEntries(pulls.map((pull) => [pull.id, pull])) } })),
 
@@ -135,6 +141,9 @@ export const useHarpia = create<HarpiaState>((set, get) => ({
         break
       case 'session':
         state.upsertSessions([message.session])
+        break
+      case 'finding':
+        state.upsertFindings([message.finding])
         break
       case 'pull_request':
         state.upsertPulls([message.pullRequest])

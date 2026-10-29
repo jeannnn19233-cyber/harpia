@@ -169,15 +169,23 @@ export function removeParticipant(db: Db, taskId: number, userId: number): boole
 }
 
 // Registra um acontecimento na task e atualiza a data da última atividade.
+// countsAsActivity: false para avisos automáticos (do vigia), que não são trabalho na task.
 export function insertEvent(
   db: Db,
-  input: { taskId: number; actorId: number | null; type: TaskEventType; data?: Record<string, unknown>; now: Date }
+  input: {
+    taskId: number
+    actorId: number | null
+    type: TaskEventType
+    data?: Record<string, unknown>
+    now: Date
+    countsAsActivity?: boolean
+  }
 ): TaskEvent {
   const now = input.now.toISOString()
   const result = db
     .prepare('INSERT INTO task_events (task_id, actor_id, type, data, created_at) VALUES (?, ?, ?, ?, ?)')
     .run(input.taskId, input.actorId, input.type, JSON.stringify(input.data ?? {}), now)
-  db.prepare('UPDATE tasks SET last_activity_at = ? WHERE id = ?').run(now, input.taskId)
+  if (input.countsAsActivity !== false) db.prepare('UPDATE tasks SET last_activity_at = ? WHERE id = ?').run(now, input.taskId)
   const row = db.prepare('SELECT * FROM task_events WHERE id = ?').get(Number(result.lastInsertRowid)) as unknown as EventRow
   return toEvent(row)
 }
