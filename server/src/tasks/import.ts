@@ -131,6 +131,8 @@ export interface PlannedCard {
   ownerId: number | null
   existing: ExistingTask | null
   action: 'create' | 'update' | 'unchanged'
+  // Cartão igual na origem, mas o dono agora tem conta: só o responsável muda.
+  ownerOnly: boolean
   hash: string
 }
 
@@ -220,9 +222,11 @@ export function planImport(cards: ImportCard[], users: User[], existing: Map<str
     const title = cardTitle(card)
     const description = cardDescription(card, ownerId !== null)
     const differs = !!before && (before.title !== title || before.description !== description || before.status !== status || before.ownerId !== ownerId)
-    const action = !before ? 'create' : before.externalHash !== hash && differs ? 'update' : 'unchanged'
+    const changedAtSource = !!before && before.externalHash !== hash && differs
+    const ownerOnly = !!before && !changedAtSource && before.ownerId === null && ownerId !== null
+    const action = !before ? 'create' : changedAtSource || ownerOnly ? 'update' : 'unchanged'
     byStatus[status]++
-    planned.push({ card, status, title, description, ownerId, existing: before, action, hash })
+    planned.push({ card, status, title, description, ownerId, existing: before, action, ownerOnly, hash })
   }
   return {
     cards: planned,

@@ -152,6 +152,15 @@ export function registerTaskRoutes(app: FastifyInstance, ctx: AppContext): void 
         }
         const before = item.existing
         if (!before) continue
+        if (item.ownerOnly) {
+          updateTaskRow(ctx.db, before.id, { ownerId: item.ownerId }, now)
+          log(before.id, 'owner_changed', { from: null, to: item.ownerId, reason: 'import' })
+          if (item.ownerId !== null && addParticipant(ctx.db, before.id, item.ownerId, now)) {
+            log(before.id, 'participant_joined', { userId: item.ownerId, reason: 'owner' })
+          }
+          changes.push({ taskId: before.id, events })
+          continue
+        }
         const fields: Parameters<typeof updateTaskRow>[2] = {}
         const edited: string[] = []
         if (before.title !== item.title) {

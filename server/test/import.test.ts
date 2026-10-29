@@ -131,6 +131,17 @@ describe('importar quadro de tarefas', () => {
     expect(after.find((task) => task.id === l21.id)?.title).toBe('L21 · Tela do que o agente fez (escopo novo)')
   })
 
+  it('quem ganha conta depois recebe as tasks dela na reimportação, sem mexer no resto', async () => {
+    await api('POST', `/api/projects/${projectId}/import`, admin.cookie, board())
+    const l21 = (await tasks()).find((task) => task.title.startsWith('L21'))!
+    await api('PATCH', `/api/tasks/${l21.id}`, admin.cookie, { description: 'Descrição reescrita pela equipe.' })
+    const layse = await addMember(server.app, admin.cookie, 'Layse Gomes', 'layse@exemplo.com')
+    expect((await api('POST', `/api/projects/${projectId}/import/preview`, admin.cookie, board())).json().plan).toMatchObject({ update: 1, unknownOwners: [] })
+    await api('POST', `/api/projects/${projectId}/import`, admin.cookie, board())
+    const after = (await tasks()).find((task) => task.id === l21.id)!
+    expect(after).toMatchObject({ ownerId: layse.userId, description: 'Descrição reescrita pela equipe.' })
+  })
+
   it('adota a task que outro importador criou com o código no título, sem duplicar', async () => {
     const made = (await api('POST', `/api/projects/${projectId}/tasks`, admin.cookie, { title: 'J88 · Tarefa J88', description: 'criada pelo script' })).json().task
     await api('POST', `/api/projects/${projectId}/tasks`, admin.cookie, { title: 'Sem código no título' })
