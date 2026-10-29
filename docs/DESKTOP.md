@@ -41,7 +41,14 @@ npm start              # abre o app sem empacotar, para testar
 
 ### Mac
 
-Gere no próprio Mac:
+O jeito mais simples, no Terminal do Mac (gera, assina localmente e instala em Aplicativos):
+
+```bash
+git clone https://github.com/jeannnn19233-cyber/harpia.git ~/harpia-app 2>/dev/null || git -C ~/harpia-app pull
+bash ~/harpia-app/desktop/scripts/instalar-mac.sh
+```
+
+Para gerar o instalador `.dmg` (para passar a outra pessoa), no próprio Mac:
 
 ```bash
 npm run dist:mac       # release/Harpia-0.1.0-arm64.dmg (Apple Silicon) e Harpia-0.1.0.dmg (Intel)
