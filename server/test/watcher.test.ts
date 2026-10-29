@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ChangedFile, User } from '../../shared/types.ts'
-import type { TelegramClient, TelegramUpdate } from '../src/notify/telegram.ts'
+import { FakeTelegram } from './fake-telegram.ts'
 import { fakeProviders } from './fake-chat.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 import { addMember, setupAdmin, startServer, type TestServer } from './helpers.ts'
@@ -13,19 +13,6 @@ class PerPersonAgents extends FakeAgentSystem {
   }
 }
 
-class FakeTelegram implements TelegramClient {
-  readonly sent: { chatId: string; text: string }[] = []
-  readonly queue: TelegramUpdate[] = []
-  async getMe() {
-    return { username: 'harpia_bot' }
-  }
-  async getUpdates() {
-    return this.queue.splice(0)
-  }
-  async sendMessage(chatId: string, text: string) {
-    this.sent.push({ chatId, text })
-  }
-}
 
 let server: TestServer
 let agents: PerPersonAgents

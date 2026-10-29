@@ -36,6 +36,18 @@ export class FakeAgentSystem implements AgentSystem {
     return `/fake/${input.user.id}/revisoes/${input.project.slug}/pr-${input.number}`
   }
 
+  readonly files = new Map<string, Buffer>()
+  async writeUserFile(user: User, relativePath: string, content: Buffer | string): Promise<string> {
+    const path = `/fake/${user.id}/${relativePath}`
+    this.files.set(path, Buffer.from(content))
+    return path
+  }
+
+  obsidian = new Map<number, string[]>()
+  async obsidianVaults(user: User): Promise<string[] | null> {
+    return this.obsidian.get(user.id) ?? []
+  }
+
   readonly folders: string[] = []
   async prepareFolder(user: User, relativePath: string): Promise<string> {
     this.preparedUsers.add(user.id)

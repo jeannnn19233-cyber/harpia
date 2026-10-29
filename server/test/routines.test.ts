@@ -5,26 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { describeSchedule, presetToCron } from '../../shared/schedule.ts'
 import { checkToolUse } from '../src/automation/policy.ts'
 import { markdownToTelegramHtml, splitMessage } from '../src/notify/format.ts'
-import type { TelegramClient, TelegramUpdate } from '../src/notify/telegram.ts'
+import { FakeTelegram } from './fake-telegram.ts'
 import { failureReason, isSilent } from '../src/routines/prompt.ts'
 import { scheduleProblem } from '../src/routines/schedule.ts'
 import { fakeProviders } from './fake-chat.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 import { addMember, setupAdmin, startServer, type TestServer } from './helpers.ts'
 
-class FakeTelegram implements TelegramClient {
-  readonly sent: { chatId: string; text: string; html: boolean }[] = []
-  readonly queue: TelegramUpdate[] = []
-  async getMe() {
-    return { username: 'harpia_bot' }
-  }
-  async getUpdates() {
-    return this.queue.splice(0)
-  }
-  async sendMessage(chatId: string, text: string, options?: { html?: boolean }) {
-    this.sent.push({ chatId, text, html: options?.html ?? false })
-  }
-}
 
 let server: TestServer
 let providers: ReturnType<typeof fakeProviders>

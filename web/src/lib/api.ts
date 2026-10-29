@@ -47,6 +47,15 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   return data as T
 }
 
+export interface VaultStatus {
+  folder: string
+  disabledReason: string | null
+  obsidian: { available: boolean; configured: boolean; syncing: boolean }
+  telegram: { available: boolean; linked: boolean; botUsername: string | null }
+  items: number
+  recent: { kind: string; path: string; createdAt: string }[]
+}
+
 export type RoutineInput = Pick<
   Routine,
   'name' | 'prompt' | 'schedule' | 'timezone' | 'folder' | 'web' | 'model' | 'deliver' | 'continuity' | 'enabled'
@@ -118,6 +127,7 @@ export const api = {
   requestReview: (projectId: number, number: number) =>
     request<{ review: PrReview }>('POST', `/api/projects/${projectId}/reviews`, { number }),
   checkReviews: (projectId: number) => request<{ reviews: PrReview[] }>('POST', `/api/projects/${projectId}/reviews/check`, {}),
+  vault: () => request<VaultStatus>('GET', '/api/me/vault'),
   routines: () => request<{ routines: Routine[] }>('GET', '/api/routines'),
   createRoutine: (input: RoutineInput) => request<{ routine: Routine }>('POST', '/api/routines', input),
   updateRoutine: (id: number, input: Partial<RoutineInput>) => request<{ routine: Routine }>('PATCH', `/api/routines/${id}`, input),

@@ -31,6 +31,9 @@ import { registerReviewRoutes } from './reviews/routes.ts'
 import { PrReviewer } from './reviews/reviewer.ts'
 import { registerRoutineRoutes } from './routines/routes.ts'
 import { RoutineRunner } from './routines/runner.ts'
+import { PersonalAgent } from './vault/agent.ts'
+import { registerVaultRoutes } from './vault/routes.ts'
+import { VaultSync } from './vault/sync.ts'
 import { registerWatcherRoutes } from './watcher/routes.ts'
 import { Watcher } from './watcher/watcher.ts'
 
@@ -72,6 +75,7 @@ export interface AppServices {
   chat: ChatManager
   routines: RoutineRunner
   reviews: PrReviewer
+  personal: PersonalAgent
 }
 
 export async function buildApp(options: BuildOptions): Promise<{ app: FastifyInstance; ctx: AppContext; services: AppServices }> {
@@ -140,6 +144,10 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     inactivityMs: options.routineLimits?.inactivityMs
   })
   registerReviewRoutes(app, ctx, reviews)
+  // Telegram de quem já vinculou a conta: o agente pessoal, com o cofre.
+  const personal = new PersonalAgent(ctx, chat, routines, { inactivityMs: options.routineLimits?.inactivityMs })
+  ctx.notifier.onMessage((user, message, chatId) => personal.handleMessage(user, message, chatId))
+  registerVaultRoutes(app, ctx, new VaultSync(ctx, options.config.vaultSyncSeconds))
   registerPullRoutes(app, ctx)
   registerWatcherRoutes(
     app,
@@ -168,5 +176,5 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     ctx.db.close()
   })
 
-  return { app, ctx, services: { chat, routines, reviews } }
+  return { app, ctx, services: { chat, routines, reviews, personal } }
 }

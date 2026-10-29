@@ -296,6 +296,19 @@ const MIGRATIONS: string[] = [
     UNIQUE (project_id, number, head_sha)
   );
   CREATE INDEX idx_pr_reviews_project ON pr_reviews(project_id, id);
+  `,
+  // Fase 6: o que chega pelo Telegram e é guardado no cofre de cada pessoa (sem repetir).
+  `
+  CREATE TABLE vault_items (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    source_ref TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('text', 'link', 'photo', 'document', 'voice', 'audio', 'video')),
+    path TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (user_id, source_ref)
+  );
+  CREATE INDEX idx_vault_items_user ON vault_items(user_id, id);
   `
 ]
 

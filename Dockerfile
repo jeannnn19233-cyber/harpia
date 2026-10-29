@@ -30,8 +30,9 @@ RUN apt-get update \
        git openssh-client ca-certificates tini tmux procps less ripgrep curl \
   && rm -rf /var/lib/apt/lists/*
 
-# Agentes de IA. Para atualizar, mude a versão e faça um novo deploy.
-RUN npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.312 @openai/codex@0.165.0 \
+# Agentes de IA e o Obsidian Sync sem tela (cofre do agente pessoal). Para atualizar, mude a
+# versão e faça um novo deploy.
+RUN npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.312 @openai/codex@0.165.0 obsidian-headless@0.0.14 \
   && npm cache clean --force
 
 WORKDIR /app

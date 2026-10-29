@@ -145,6 +145,34 @@ export class LinuxAgentSystem implements AgentSystem {
     return path
   }
 
+  async writeUserFile(user: User, relativePath: string, content: Buffer | string): Promise<string> {
+    const parts = relativePath.split('/')
+    if (parts.some((part) => part === '..' || part === '') || parts.length < 2) throw new Error('Caminho inválido.')
+    await this.prepareFolder(user, parts.slice(0, -1).join('/'))
+    const path = join(this.homeDir(user), relativePath)
+    await new Promise<void>((resolve, reject) => {
+      const child = this.spawnPiped({ user, command: 'sh', args: ['-c', 'umask 022; cat > "$1"', 'sh', path], cwd: this.homeDir(user) })
+      let stderr = ''
+      child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString()))
+      child.on('error', reject)
+      child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(stderr.trim() || `Falha ao gravar ${relativePath}.`))))
+      child.stdin?.end(content)
+    })
+    return path
+  }
+
+  async obsidianVaults(user: User): Promise<string[] | null> {
+    if (!(await commandExists('ob'))) return null
+    await this.prepareUser(user)
+    try {
+      const output = await this.asUser(user, ['ob', 'sync-list-local', '--json'])
+      const parsed = JSON.parse(output) as { vaults?: { path?: string }[] }
+      return (parsed.vaults ?? []).map((vault) => vault.path ?? '').filter(Boolean)
+    } catch {
+      return []
+    }
+  }
+
   // O espelho pertence ao servidor; o git só deixa outro usuário clonar se ele estiver marcado como seguro.
   private async markSafe(repoPath: string): Promise<void> {
     let current: string[] = []

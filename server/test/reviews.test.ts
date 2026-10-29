@@ -9,7 +9,7 @@ import type { GitHubClient, OpenPullRequest, ReviewComment } from '../src/github
 import { systemGit, type GitRunner } from '../src/projects/git.ts'
 import { maskSecrets, parseDiff, scanSecrets } from '../src/reviews/diff.ts'
 import { finalVerdict, parseReviewResult } from '../src/reviews/prompt.ts'
-import type { TelegramClient, TelegramUpdate } from '../src/notify/telegram.ts'
+import { FakeTelegram } from './fake-telegram.ts'
 import { fakeProviders } from './fake-chat.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 import { addMember, setupAdmin, startServer, type TestServer } from './helpers.ts'
@@ -62,19 +62,6 @@ class FakeGitHub implements GitHubClient {
   }
 }
 
-class FakeTelegram implements TelegramClient {
-  readonly sent: { chatId: string; text: string }[] = []
-  readonly queue: TelegramUpdate[] = []
-  async getMe() {
-    return { username: 'harpia_bot' }
-  }
-  async getUpdates() {
-    return this.queue.splice(0)
-  }
-  async sendMessage(chatId: string, text: string) {
-    this.sent.push({ chatId, text })
-  }
-}
 
 let root: string
 let remote: string

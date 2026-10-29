@@ -61,7 +61,12 @@ export function FindingCard({ finding, compact = false, onOpen }: { finding: Fin
   )
 }
 
-function TelegramSection() {
+export function TelegramSection({
+  title = 'Avisos no Telegram',
+  linkedText = 'Você recebe os avisos do vigia e dos seus agentes quando não está com o Harpia aberto.',
+  bordered = true,
+  linkLabel = 'Receber avisos no Telegram'
+}: { title?: string; linkedText?: string; bordered?: boolean; linkLabel?: string } = {}) {
   const [settings, setSettings] = useState<NotificationSettings | null>(null)
   const [link, setLink] = useState<{ code: string; url: string | null } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -79,14 +84,14 @@ function TelegramSection() {
   if (!settings) return null
   const telegram = settings.telegram
   return (
-    <section className="border-t border-zinc-800 pt-4">
-      <h3 className="mb-1 text-sm font-semibold">Avisos no Telegram</h3>
+    <section className={bordered ? 'border-t border-zinc-800 pt-4' : ''}>
+      <h3 className="mb-1 text-sm font-semibold">{title}</h3>
       {!telegram.available ? (
         <p className="text-sm text-zinc-500">O bot do Telegram não está configurado no servidor (HARPIA_TELEGRAM_BOT_TOKEN).</p>
       ) : telegram.linked ? (
         <div className="flex items-center gap-3 text-sm">
           <span className="text-emerald-400">Vinculado</span>
-          <span className="text-zinc-500">Você recebe os avisos do vigia e dos seus agentes quando não está com o Harpia aberto.</span>
+          <span className="text-zinc-500">{linkedText}</span>
           <button
             className="btn-ghost ml-auto px-2 py-1 text-xs"
             onClick={() => void api.unlinkTelegram().then(load)}
@@ -123,7 +128,7 @@ function TelegramSection() {
               .catch((err: Error) => setError(err.message))
           }
         >
-          Receber avisos no Telegram
+          {linkLabel}
         </button>
       )}
       {error && <p className="mt-2 text-sm text-rose-400">{error}</p>}

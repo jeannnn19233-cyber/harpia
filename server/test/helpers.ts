@@ -91,6 +91,7 @@ export async function startServer(
       maxConcurrentRuns: 3,
       reviewPollSeconds: 0,
       reviewSettleSeconds: 0,
+      vaultSyncSeconds: 0,
       staleHours: 48,
       reviewHours: 24
     },

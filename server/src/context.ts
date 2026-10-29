@@ -36,6 +36,8 @@ export interface AppConfig {
   // ficar sem commits novos antes da revisão.
   reviewPollSeconds: number
   reviewSettleSeconds: number
+  // De quanto em quanto tempo o servidor confere se a sincronização do cofre com o Obsidian está ligada (0 desliga).
+  vaultSyncSeconds: number
 }
 
 export interface AppContext {

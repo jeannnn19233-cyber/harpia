@@ -4,6 +4,7 @@ import { api } from '../lib/api.ts'
 import { startRealtime } from '../lib/realtime.ts'
 import { useHarpia } from '../lib/store.ts'
 import { AccountsDialog } from './AccountsDialog.tsx'
+import { AgentDialog } from './AgentDialog.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Board } from './Board.tsx'
 import { Conversations } from './chat/Conversations.tsx'
@@ -35,7 +36,7 @@ function CloneBadge({ project }: { project: Project }) {
 export function Workspace({ onLogout }: { onLogout: () => void }) {
   const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus, view, setView } =
     useHarpia()
-  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | 'reviews' | null>(null)
+  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | 'reviews' | 'agent' | null>(null)
   const openFindings = useOpenFindings(projectId)
 
   useEffect(() => startRealtime(), [])
@@ -129,6 +130,11 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
             </button>
           )}
           {agentsStatus?.enabled && (
+            <button className="btn-ghost py-1.5" onClick={() => setDialog('agent')} title="Seu agente pessoal no Telegram, com o cofre do Obsidian">
+              Meu agente
+            </button>
+          )}
+          {agentsStatus?.enabled && (
             <button className="btn-ghost py-1.5" onClick={() => setDialog('accounts')}>
               Minhas IAs
             </button>
@@ -168,6 +174,7 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
       )}
       {dialog === 'team' && <TeamDialog onClose={() => setDialog(null)} />}
       {dialog === 'accounts' && <AccountsDialog onClose={() => setDialog(null)} />}
+      {dialog === 'agent' && <AgentDialog onClose={() => setDialog(null)} />}
       {dialog === 'watcher' && projectId && <WatcherDialog projectId={projectId} onClose={() => setDialog(null)} />}
       {dialog === 'reviews' && projectId && <ReviewsDialog projectId={projectId} onClose={() => setDialog(null)} />}
       {dialog === 'memory' && projectId && <MemoryDialog projectId={projectId} onClose={() => setDialog(null)} />}

@@ -3,7 +3,11 @@ import { hashToken } from '../auth/passwords.ts'
 import { getUser } from '../auth/users.ts'
 import type { Db } from '../db/index.ts'
 import { markdownToTelegramHtml, splitMessage } from './format.ts'
-import type { TelegramClient, TelegramUpdate } from './telegram.ts'
+import type { User } from '../../../shared/types.ts'
+import type { TelegramClient, TelegramMessage, TelegramUpdate } from './telegram.ts'
+
+// Quem trata as mensagens de quem já vinculou o Telegram (o agente pessoal).
+export type MessageHandler = (user: User, message: TelegramMessage, chatId: string) => Promise<void>
 
 const CODE_MINUTES = 15
 // Sem letras e números que se confundem (0/O, 1/I).
@@ -31,6 +35,7 @@ export class Notifier {
   private readonly options: NotifierOptions
   private offset = 0
   private running = false
+  private messageHandler: MessageHandler | null = null
   botUsername: string | null = null
 
   constructor(options: NotifierOptions) {
@@ -39,6 +44,14 @@ export class Notifier {
 
   available(): boolean {
     return this.options.telegram !== null
+  }
+
+  client(): TelegramClient | null {
+    return this.options.telegram
+  }
+
+  onMessage(handler: MessageHandler): void {
+    this.messageHandler = handler
   }
 
   link(path: string): string {
@@ -113,8 +126,26 @@ export class Notifier {
   private async handleUpdate(update: TelegramUpdate): Promise<void> {
     const message = update.message
     const telegram = this.options.telegram
-    if (!message?.text || !telegram) return
+    if (!message || !telegram) return
     const chatId = String(message.chat.id)
+    const isLink = /^\/start\s+\S+/.test(message.text ?? '')
+    // Quem já vinculou conversa com o agente pessoal (exceto um /start com código novo).
+    const linked = this.options.db
+      .prepare("SELECT user_id FROM notification_targets WHERE platform = 'telegram' AND chat_id = ?")
+      .get(chatId) as { user_id: number } | undefined
+    if (linked && !isLink && this.messageHandler) {
+      const user = getUser(this.options.db, linked.user_id)
+      if (user) {
+        try {
+          await this.messageHandler(user, message, chatId)
+        } catch (error) {
+          this.options.warn(error, 'Falha ao tratar mensagem do Telegram.')
+          await telegram.sendMessage(chatId, `Algo deu errado ao tratar a sua mensagem: ${(error as Error).message}`).catch(() => undefined)
+        }
+      }
+      return
+    }
+    if (!message.text) return
     const code = message.text
       .replace(/^\/start\s*/, '')
       .trim()
@@ -127,7 +158,7 @@ export class Notifier {
     if (!row || row.expires_at <= this.options.now().toISOString()) {
       await telegram.sendMessage(
         chatId,
-        'Olá! Para receber os avisos do Harpia, gere um código em "Avisos" no Harpia e mande ele aqui.'
+        'Olá! Sou o bot do Harpia. Para falar comigo, gere um código em "Meu agente" no Harpia e mande ele aqui.'
       )
       return
     }

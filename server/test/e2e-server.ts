@@ -139,6 +139,7 @@ const { app } = await buildApp({
     maxConcurrentRuns: 3,
     reviewPollSeconds: 0,
     reviewSettleSeconds: 0,
+    vaultSyncSeconds: 0,
     staleHours: 48,
     reviewHours: 24
   },
@@ -148,7 +149,9 @@ const { app } = await buildApp({
   telegram: {
     getMe: async () => ({ username: 'harpia_teste_bot' }),
     getUpdates: async () => [],
-    sendMessage: async () => {}
+    sendMessage: async () => {},
+    sendTyping: async () => {},
+    downloadFile: async () => Buffer.from('')
   },
   chatProviders: scripted,
   chatModels: async ({ provider }) =>

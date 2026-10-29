@@ -26,6 +26,11 @@ export interface AgentSystem {
   prepareReviewCheckout(input: { user: User; project: Project; mirrorPath: string; number: number; sha: string }): Promise<string>
   // Cria (como a pessoa) uma pasta dentro da pasta dela e devolve o caminho. Usada pelas conversas fora das tasks.
   prepareFolder(user: User, relativePath: string): Promise<string>
+  // Grava um arquivo na pasta da pessoa, como ela (nunca como root: links simbólicos na pasta
+  // dela não levam a escrita para fora). Devolve o caminho completo.
+  writeUserFile(user: User, relativePath: string, content: Buffer | string): Promise<string>
+  // Pastas configuradas no Obsidian Sync (obsidian-headless) da pessoa; null se o "ob" não está instalado.
+  obsidianVaults(user: User): Promise<string[] | null>
   // command null abre só o shell.
   startSession(input: { user: User; name: string; cwd: string; command: string | null }): Promise<void>
   isRunning(user: User, name: string): Promise<boolean>
