@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'" />
+    <title>Harpia</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icon.png" alt="" />
+        <strong>Harpia</strong>
+        <span>Workspace de agentes</span>
+      </header>
+      <form class="card" id="form">
+        <h1>Onde está o Harpia da sua equipe?</h1>
+        <p>O app abre o mesmo Harpia que vocês usam no navegador, numa janela própria, com avisos do sistema.</p>
+        <label for="server">Endereço do servidor</label>
+        <input id="server" name="server" placeholder="https://harpia.suaempresa.com.br" autocomplete="url" spellcheck="false" autofocus />
+        <div class="error" id="error" role="alert"></div>
+        <div class="actions">
+          <button class="primary" id="submit" type="submit">Conectar</button>
+        </div>
+        <div class="muted">Dá para trocar depois no menu, em <b>Trocar de servidor…</b></div>
+      </form>
+    </main>
+    <script src="setup.js"></script>
+  </body>
+</html>

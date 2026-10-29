@@ -24,6 +24,7 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 | 4b | Partes com IA: julgar tasks parecidas, resumo de cada task concluída, sugestões de aprendizado para o `AGENTS.md` e sugestão de próxima mensagem no Codex. Rodam no Claude Code de cada pessoa envolvida (decisão dos sócios), nunca numa conta central | **pronta** |
 | 6 | Como no Hermes: rotinas agendadas (cron), revisão automática dos PRs no GitHub e o agente pessoal de cada um no Telegram, com o cofre do Obsidian | **pronta** |
 | 6b | Revisor de PRs igual ao do Hermes (corrige, roda as suítes, envia commits e aprova, em nome de um colega com o token dele) e os vigias do deploy e das tarefas agendadas no Coolify | **pronta** |
+| 7 | App de computador (Mac, Windows, Linux): o Harpia do servidor numa janela própria, com avisos do sistema e contador no ícone (veja [DESKTOP.md](DESKTOP.md)) | **pronta** |
 
 ## Onde roda
 

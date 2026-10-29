@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { TASK_STATUSES, TASK_STATUS_LABELS, type Task } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
+import { startDesktopBridge } from '../lib/desktop.ts'
 import { startRealtime } from '../lib/realtime.ts'
 import { useHarpia } from '../lib/store.ts'
 import { AccountsDialog } from './AccountsDialog.tsx'
@@ -85,6 +86,7 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
     openTask(null)
   }
   useEffect(() => startRealtime(), [])
+  useEffect(() => startDesktopBridge(), [])
   useEffect(() => {
     if (!projectId) return
     let current = true
