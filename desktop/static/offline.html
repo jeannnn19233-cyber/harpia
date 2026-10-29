@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'" />
+    <title>Harpia</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icon.png" alt="" />
+        <strong>Harpia</strong>
+        <span>Workspace de agentes</span>
+      </header>
+      <div class="card">
+        <h1>Não consegui abrir o Harpia</h1>
+        <p id="detail">O servidor não respondeu.</p>
+        <div class="actions">
+          <button class="primary" id="retry">Tentar de novo</button>
+          <button id="change">Trocar de servidor</button>
+        </div>
+        <div class="muted" id="auto">Tento de novo sozinho a cada 15 segundos (o servidor pode estar num deploy).</div>
+      </div>
+    </main>
+    <script src="offline.js"></script>
+  </body>
+</html>

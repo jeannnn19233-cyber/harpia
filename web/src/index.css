@@ -1940,3 +1940,15 @@ button {
     scroll-behavior: auto !important;
   }
 }
+
+/* App de computador no Mac: a barra do Harpia fica ao lado dos botões da janela e arrasta a
+   janela; os controles dentro dela continuam clicáveis. */
+html.desktop-darwin .studio-titlebar,
+html.desktop-darwin .connection-shell > header {
+  padding-left: 84px;
+  -webkit-app-region: drag;
+}
+html.desktop-darwin .studio-titlebar :is(button, input, select, a, img),
+html.desktop-darwin .connection-shell > header :is(button, input, select, a) {
+  -webkit-app-region: no-drag;
+}
