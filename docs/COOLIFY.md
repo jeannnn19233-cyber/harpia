@@ -70,11 +70,11 @@ clique em **Redeploy**. Os dados ficam no volume `/data` e sobrevivem ao deploy.
 
 ## Backup
 
-O banco é o arquivo `/data/harpia.db`. Uma cópia consistente com o Harpia ligado, pelo
+O banco é o arquivo `/data/server/harpia.db`. Uma cópia consistente com o Harpia ligado, pelo
 terminal do container no Coolify:
 
 ```bash
-node --disable-warning=ExperimentalWarning -e "require('node:sqlite'); new (require('node:sqlite').DatabaseSync)('/data/harpia.db').exec(\"VACUUM INTO '/data/backup.db'\")"
+node --disable-warning=ExperimentalWarning -e "require('node:sqlite'); new (require('node:sqlite').DatabaseSync)('/data/server/harpia.db').exec(\"VACUUM INTO '/data/backup.db'\")"
 ```
 
 Depois copie `/data/backup.db` para fora do servidor (ou ative os backups de volume do Coolify).
