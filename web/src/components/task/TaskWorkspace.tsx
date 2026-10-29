@@ -1,74 +1,94 @@
 import { useEffect, useMemo, useState } from 'react'
-import { TASK_STATUS_LABELS, type ChatProvider } from '../../../../shared/types.ts'
+import { CHAT_PROVIDER_LABELS, TASK_STATUS_LABELS, type ChatProvider } from '../../../../shared/types.ts'
 import { api } from '../../lib/api.ts'
 import { useHarpia } from '../../lib/store.ts'
+import { Icon } from '../Icon.tsx'
+import { ResizeHandle, savedSize, rememberSize } from '../ResizeHandle.tsx'
 import { ChatList } from './ChatList.tsx'
 import { ChatView } from './ChatView.tsx'
+import { ChangesPanel } from './ChangesPanel.tsx'
 import { TaskSidebar } from './TaskSidebar.tsx'
 import { TerminalDock } from './TerminalDock.tsx'
 
-// Tela de trabalho de uma task: conversas à esquerda, chat no centro com o terminal
-// embaixo, e os dados da task com o histórico da equipe à direita.
+function storedChat(taskId: number) {
+  try {
+    return Number(localStorage.getItem(`harpia.studio.chat.${taskId}`)) || null
+  } catch {
+    return null
+  }
+}
 export function TaskWorkspace({ taskId }: { taskId: number }) {
-  const { me, agentsStatus, openTask, upsertTask, setEvents, upsertChats } = useHarpia()
-  const task = useHarpia((state) => state.tasks[taskId])
-  const allChats = useHarpia((state) => state.chats)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [creating, setCreating] = useState<ChatProvider | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [title, setTitle] = useState('')
-
+  const { me, users, agentsStatus, upsertTask, setEvents, upsertChats } = useHarpia()
+  const task = useHarpia((state) => state.tasks[taskId]),
+    allChats = useHarpia((state) => state.chats)
+  const [selectedId, setSelectedId] = useState<number | null>(null),
+    [creating, setCreating] = useState<ChatProvider | null>(null),
+    [error, setError] = useState<string | null>(null),
+    [title, setTitle] = useState('')
+  const [sessionPicker, setSessionPicker] = useState(false),
+    [inspector, setInspector] = useState(() => window.innerWidth >= 980),
+    [inspectorTab, setInspectorTab] = useState<'context' | 'changes'>('context')
+  const [inspectorWidth, setInspectorWidth] = useState(() => savedSize('harpia.studio.inspector', 300, 250, 440))
   const chats = useMemo(
-    () => Object.values(allChats).filter((chat) => chat.taskId === taskId).sort((a, b) => a.id - b.id),
+    () =>
+      Object.values(allChats)
+        .filter((chat) => chat.taskId === taskId)
+        .sort((a, b) => a.id - b.id),
     [allChats, taskId]
   )
-
   useEffect(() => {
+    let current = true
     api
       .task(taskId)
       .then((detail) => {
+        if (!current) return
         upsertTask(detail.task)
         setEvents(taskId, detail.events)
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => current && setError(err.message))
     api
       .taskChats(taskId)
       .then(({ chats }) => {
+        if (!current) return
         upsertChats(chats)
-        // Abre a minha conversa mais recente; senão, a mais recente da equipe.
-        const open = chats.filter((chat) => chat.status !== 'closed')
-        const mine = open.filter((chat) => chat.userId === me?.id)
-        const initial = mine.at(-1) ?? open.at(-1)
+        const remembered = storedChat(taskId)
+        const active = chats.filter((chat) => chat.status !== 'closed')
+        const initial =
+          chats.find((chat) => chat.id === remembered) ??
+          active.filter((chat) => chat.userId === me?.id).at(-1) ??
+          active.at(-1)
         if (initial) setSelectedId((current) => current ?? initial.id)
       })
-      .catch(() => undefined)
+      .catch((err: Error) => current && setError(err.message))
+    return () => {
+      current = false
+    }
   }, [taskId, me?.id, upsertTask, setEvents, upsertChats])
-
   useEffect(() => {
     if (task) setTitle(task.title)
   }, [task?.title])
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !(event.target instanceof HTMLTextAreaElement) && !(event.target instanceof HTMLInputElement)) {
-        openTask(null)
-      }
+  const selectChat = (id: number) => {
+    setSelectedId(id)
+    setSessionPicker(false)
+    try {
+      localStorage.setItem(`harpia.studio.chat.${taskId}`, String(id))
+    } catch {
+      /* Continua sem persistência. */
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [openTask])
-
-  if (!task) return <div className="flex flex-1 items-center justify-center text-sm text-zinc-500">Carregando task…</div>
-
-  const disabledReason = agentsStatus && !agentsStatus.enabled ? agentsStatus.reason : null
-  const taskDone = task.status === 'done'
-
+  }
+  if (!task) return <div className="studio-empty">Carregando tarefa…</div>
+  const disabledReason =
+    task.status === 'done'
+      ? 'Reabra a tarefa para iniciar outra sessão.'
+      : agentsStatus && !agentsStatus.enabled
+        ? agentsStatus.reason
+        : null
   const create = async (provider: ChatProvider) => {
     setCreating(provider)
     try {
       const { chat } = await api.createChat(task.id, provider, 'ask')
       upsertChats([chat])
-      setSelectedId(chat.id)
+      selectChat(chat.id)
       setError(null)
     } catch (err) {
       setError((err as Error).message)
@@ -76,7 +96,6 @@ export function TaskWorkspace({ taskId }: { taskId: number }) {
       setCreating(null)
     }
   }
-
   const saveTitle = async () => {
     if (!title.trim() || title === task.title) return
     try {
@@ -85,49 +104,167 @@ export function TaskWorkspace({ taskId }: { taskId: number }) {
       setError((err as Error).message)
     }
   }
-
+  const visibleChats = chats.filter((chat) => chat.status !== 'closed' || chat.id === selectedId)
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-3 border-b border-zinc-800 px-4 py-2">
-        <button className="btn-ghost px-2 py-1 text-sm" onClick={() => openTask(null)} title="Voltar ao quadro (Esc)">
-          ← Quadro
-        </button>
-        <span className="font-mono text-sm text-zinc-500">T-{task.number}</span>
+    <section className="task-studio">
+      <header className="task-pathbar">
+        <span className="task-number">T-{task.number}</span>
         <input
-          className="min-w-0 flex-1 bg-transparent text-base font-semibold outline-none"
+          aria-label="Título da tarefa"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(event) => setTitle(event.target.value)}
           onBlur={() => void saveTitle()}
-          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
         />
-        <span className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-xs text-zinc-300">
+        <span className={`studio-status ${task.status}`}>
+          <i className={`task-status ${task.status}`} />
           {TASK_STATUS_LABELS[task.status]}
         </span>
-      </div>
-      {error && <div className="bg-rose-950 px-4 py-2 text-sm text-rose-300">{error}</div>}
-
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
-        <ChatList
-          chats={chats}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onCreate={(provider) => void create(provider)}
-          creating={creating}
-          disabledReason={taskDone ? 'A task está concluída. Reabra para trabalhar nela.' : disabledReason}
-        />
-        <main className="flex min-h-0 flex-col">
+        <button
+          className={sessionPicker ? 'selected' : ''}
+          title="Conversas da equipe"
+          aria-label="Gerenciar conversas"
+          aria-expanded={sessionPicker}
+          onClick={() => setSessionPicker(!sessionPicker)}
+        >
+          <Icon name="team" size={15} />
+        </button>
+        <button
+          className={inspector ? 'selected' : ''}
+          title="Mostrar contexto e alterações"
+          aria-label="Alternar painel de contexto"
+          aria-expanded={inspector}
+          onClick={() => setInspector(!inspector)}
+        >
+          <Icon name="list" size={16} />
+        </button>
+      </header>
+      {error && (
+        <p className="studio-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div
+        className={`task-studio-layout ${inspector ? '' : 'inspector-hidden'}`}
+        style={inspector ? { gridTemplateColumns: `minmax(0,1fr) 4px ${inspectorWidth}px` } : undefined}
+      >
+        <main className="agent-workspace">
+          <div className="session-tabs" role="tablist" aria-label="Sessões de agentes">
+            {visibleChats.map((chat) => (
+              <button
+                role="tab"
+                aria-selected={chat.id === selectedId}
+                key={chat.id}
+                className={chat.id === selectedId ? 'selected' : ''}
+                onClick={() => selectChat(chat.id)}
+                title={`${chat.title} · ${users[chat.userId]?.name}`}
+              >
+                <span className={`provider-symbol ${chat.provider}`}>{chat.provider === 'claude' ? '✳' : '⌘'}</span>
+                <span>{CHAT_PROVIDER_LABELS[chat.provider]}</span>
+                <small>{users[chat.userId]?.name.split(' ')[0]}</small>
+                <i className={`mini-state ${chat.status}`} />
+              </button>
+            ))}
+            <button aria-label="Nova conversa" title="Nova conversa" onClick={() => setSessionPicker(!sessionPicker)}>
+              <Icon name="plus" size={14} />
+              {!visibleChats.length && <span>Nova sessão</span>}
+            </button>
+          </div>
+          {sessionPicker && (
+            <div className="session-popover">
+              <ChatList
+                chats={chats}
+                selectedId={selectedId}
+                onSelect={selectChat}
+                onCreate={(provider) => void create(provider)}
+                creating={creating}
+                disabledReason={disabledReason}
+              />
+              <button className="session-popover-close" onClick={() => setSessionPicker(false)}>
+                Fechar
+              </button>
+            </div>
+          )}
           {selectedId ? (
             <ChatView key={selectedId} chatId={selectedId} />
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-sm text-zinc-500">
-              <p className="text-base text-zinc-300">Nenhuma conversa aberta nesta task.</p>
-              <p>Comece uma conversa com o Claude ou o Codex ao lado. Cada pessoa usa o próprio agente e a própria cópia do código.</p>
+            <div className="session-empty">
+              <span className="session-empty-icon">
+                <Icon name="terminal" size={26} />
+              </span>
+              <h1>Uma tarefa. Seus agentes.</h1>
+              <p>
+                Inicie uma sessão para trabalhar nesta tarefa.
+                <br />
+                Sua equipe acompanha a execução em tempo real.
+              </p>
+              <div className="provider-choices">
+                <button disabled={!!disabledReason || creating !== null} onClick={() => void create('claude')}>
+                  <span className="provider-symbol claude">✳</span>
+                  <strong>{creating === 'claude' ? 'Abrindo…' : 'Claude'}</strong>
+                  <small>Nova sessão</small>
+                  <Icon name="plus" size={15} />
+                </button>
+                <button disabled={!!disabledReason || creating !== null} onClick={() => void create('codex')}>
+                  <span className="provider-symbol codex">⌘</span>
+                  <strong>{creating === 'codex' ? 'Abrindo…' : 'Codex'}</strong>
+                  <small>Nova sessão</small>
+                  <Icon name="plus" size={15} />
+                </button>
+              </div>
+              {disabledReason && <p className="session-disabled">{disabledReason}</p>}
+              <span className="session-footnote">
+                <Icon name="branch" size={12} />
+                Cada pessoa trabalha na própria branch.
+              </span>
             </div>
           )}
-          <TerminalDock taskId={task.id} enabled={!disabledReason} />
+          <TerminalDock taskId={task.id} enabled={!!agentsStatus?.enabled} />
         </main>
-        <TaskSidebar taskId={task.id} />
+        {inspector && (
+          <>
+            <ResizeHandle
+              label="Largura do painel de contexto"
+              value={inspectorWidth}
+              min={250}
+              max={440}
+              direction={-1}
+              onResize={(value) => {
+                setInspectorWidth(value)
+                rememberSize('harpia.studio.inspector', value)
+              }}
+            />
+            <aside className="studio-inspector" aria-label="Inspector da tarefa">
+              <div className="inspector-tabs" role="tablist" aria-label="Conteúdo do inspector">
+                <button
+                  role="tab"
+                  aria-selected={inspectorTab === 'context'}
+                  className={inspectorTab === 'context' ? 'selected' : ''}
+                  onClick={() => setInspectorTab('context')}
+                >
+                  Contexto
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={inspectorTab === 'changes'}
+                  className={inspectorTab === 'changes' ? 'selected' : ''}
+                  onClick={() => setInspectorTab('changes')}
+                >
+                  Alterações
+                </button>
+                <button aria-label="Fechar inspector" onClick={() => setInspector(false)}>
+                  <Icon name="close" size={12} />
+                </button>
+              </div>
+              {inspectorTab === 'context' ? (
+                <TaskSidebar taskId={task.id} />
+              ) : (
+                <ChangesPanel key={task.id} taskId={task.id} />
+              )}
+            </aside>
+          </>
+        )}
       </div>
-    </div>
+    </section>
   )
 }

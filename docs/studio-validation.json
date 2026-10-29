@@ -1,0 +1,22 @@
+{
+  "kind": "DOM integration with local fixture API",
+  "checks": [
+    "Abre diretamente na tarefa em andamento",
+    "Carrega sessões de Claude e Codex",
+    "Exibe aprovação pendente",
+    "Bloqueia envio enquanto aguarda aprovação",
+    "Sessão de colega tem somente leitura",
+    "Oculta compositor na sessão de outra pessoa",
+    "Retorna à sessão pessoal",
+    "Recebe e mostra sugestão do Claude",
+    "Sugestão preenche a mensagem",
+    "Carrega arquivos alterados da API",
+    "Ajusta largura do inspector por teclado",
+    "Carrega memória do projeto",
+    "Fecha modal com Escape",
+    "Abre Vigia com avisos do projeto",
+    "Quadro permanece acessível como visão complementar",
+    "Recolhe o explorador",
+    "Busca rápida por Ctrl+K"
+  ]
+}

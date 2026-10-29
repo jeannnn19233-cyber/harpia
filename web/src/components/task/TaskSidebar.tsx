@@ -63,7 +63,8 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
       return `o PR #${event.data.number} de ${name(event.data.userId)} foi fechado sem merge`
     case 'status_changed':
       if (event.data.reason === 'merged') return 'concluiu a task: todos os PRs tiveram merge'
-      if (event.data.reason === 'pr_opened') return `moveu para ${status(event.data.to)} ao abrir o PR #${event.data.number}`
+      if (event.data.reason === 'pr_opened')
+        return `moveu para ${status(event.data.to)} ao abrir o PR #${event.data.number}`
       if (event.data.reason === 'agent') return `começou a trabalhar: moveu para ${status(event.data.to)}`
       return `moveu de ${status(event.data.from)} para ${status(event.data.to)}`
     case 'owner_changed':
@@ -83,7 +84,9 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
     case 'agent_stopped': {
       const label = AGENT_LABELS[event.data.kind as AgentSession['kind']] ?? 'agente'
       if (event.data.reason === 'ended') return `a sessão de ${label} de ${name(event.data.ownerId)} terminou`
-      return event.data.ownerId === event.actorId ? `encerrou o ${label}` : `encerrou o ${label} de ${name(event.data.ownerId)}`
+      return event.data.ownerId === event.actorId
+        ? `encerrou o ${label}`
+        : `encerrou o ${label} de ${name(event.data.ownerId)}`
     }
   }
 }
@@ -104,36 +107,36 @@ function Timeline({ taskId }: { taskId: number }) {
         // Quem vira responsável entra na task automaticamente; o evento de troca já diz isso.
         .filter((event) => !(event.type === 'participant_joined' && event.data.reason === 'owner'))
         .map((event) => {
-        const actor = event.actorId ? users[event.actorId] : undefined
-        return (
-          <li key={event.id} className="flex gap-3">
-            {actor ? (
-              <Avatar user={actor} size="sm" />
-            ) : (
-              <span
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-zinc-950"
-                title="Ação automática do Harpia"
-              >
-                H
-              </span>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-sm">
-                <span className="font-medium">{actor?.name ?? 'Harpia'}</span>{' '}
-                <span className="text-zinc-400">{describe(event, users)}</span>{' '}
-                <span className="text-xs text-zinc-500" title={fullDate(event.createdAt)}>
-                  · {timeAgo(event.createdAt)}
+          const actor = event.actorId ? users[event.actorId] : undefined
+          return (
+            <li key={event.id} className="flex gap-3">
+              {actor ? (
+                <Avatar user={actor} size="sm" />
+              ) : (
+                <span
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-zinc-950"
+                  title="Ação automática do Harpia"
+                >
+                  H
                 </span>
-              </p>
-              {event.type === 'comment' && (
-                <p className="mt-1 rounded-lg bg-zinc-800/70 px-3 py-2 text-sm whitespace-pre-wrap">
-                  {String(event.data.body)}
-                </p>
               )}
-            </div>
-          </li>
-        )
-      })}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">
+                  <span className="font-medium">{actor?.name ?? 'Harpia'}</span>{' '}
+                  <span className="text-zinc-400">{describe(event, users)}</span>{' '}
+                  <span className="text-xs text-zinc-500" title={fullDate(event.createdAt)}>
+                    · {timeAgo(event.createdAt)}
+                  </span>
+                </p>
+                {event.type === 'comment' && (
+                  <p className="mt-1 rounded-lg bg-zinc-800/70 px-3 py-2 text-sm whitespace-pre-wrap">
+                    {String(event.data.body)}
+                  </p>
+                )}
+              </div>
+            </li>
+          )
+        })}
       <div ref={bottom} />
     </ol>
   )
@@ -181,7 +184,7 @@ export function TaskSidebar({ taskId }: { taskId: number }) {
   const teamList = Object.values(users).sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <aside className="flex min-h-0 flex-col border-l border-zinc-800 bg-zinc-950">
+    <aside className="studio-task-details flex min-h-0 flex-col border-l border-zinc-800 bg-zinc-950">
       <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
         <div className="grid grid-cols-1 gap-2">
           <label className="block">
