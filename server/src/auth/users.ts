@@ -1,4 +1,4 @@
-import type { User, UserRole } from '../../../shared/types.ts'
+import type { ReviewMode, User, UserRole } from '../../../shared/types.ts'
 import type { Db } from '../db/index.ts'
 
 interface UserRow {
@@ -10,18 +10,24 @@ interface UserRow {
   password_hash: string
   github_login: string | null
   codex_suggestions: number
+  review_mode: ReviewMode
+  preferred_reviewer_id: number | null
+  github_connected: number | null
 }
 
 function toUser(row: UserRow): User {
   return { id: row.id, name: row.name, email: row.email, role: row.role, githubLogin: row.github_login,
     codexSuggestions: row.codex_suggestions === 1,
+    githubConnected: row.github_connected === 1,
+    reviewMode: row.review_mode,
+    preferredReviewerId: row.preferred_reviewer_id,
     createdAt: row.created_at
   }
 }
 
 // Pessoa da equipe dona de um usuário do GitHub (sem diferenciar maiúsculas).
 export function findUserByGitHubLogin(db: Db, login: string): User | null {
-  const row = db.prepare('SELECT * FROM users WHERE lower(github_login) = lower(?)').get(login) as UserRow | undefined
+  const row = db.prepare('SELECT users.*, EXISTS (SELECT 1 FROM github_accounts g WHERE g.user_id = users.id) AS github_connected FROM users WHERE lower(github_login) = lower(?)').get(login) as UserRow | undefined
   return row ? toUser(row) : null
 }
 
@@ -41,17 +47,17 @@ export function countUsers(db: Db): number {
 }
 
 export function listUsers(db: Db): User[] {
-  const rows = db.prepare('SELECT * FROM users ORDER BY name COLLATE NOCASE').all() as unknown as UserRow[]
+  const rows = db.prepare('SELECT users.*, EXISTS (SELECT 1 FROM github_accounts g WHERE g.user_id = users.id) AS github_connected FROM users ORDER BY name COLLATE NOCASE').all() as unknown as UserRow[]
   return rows.map(toUser)
 }
 
 export function getUser(db: Db, id: number): User | null {
-  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
+  const row = db.prepare('SELECT users.*, EXISTS (SELECT 1 FROM github_accounts g WHERE g.user_id = users.id) AS github_connected FROM users WHERE id = ?').get(id) as UserRow | undefined
   return row ? toUser(row) : null
 }
 
 export function getUserWithPassword(db: Db, email: string): { user: User; passwordHash: string } | null {
-  const row = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined
+  const row = db.prepare('SELECT users.*, EXISTS (SELECT 1 FROM github_accounts g WHERE g.user_id = users.id) AS github_connected FROM users WHERE email = ?').get(email) as UserRow | undefined
   return row ? { user: toUser(row), passwordHash: row.password_hash } : null
 }
 

@@ -13,6 +13,17 @@ export interface AutomationPolicy {
 export const READ_TOOLS = ['Read', 'Glob', 'Grep']
 export const WRITE_TOOLS = ['Read', 'Glob', 'Grep', 'Write', 'Edit']
 export const WEB_TOOLS = ['WebFetch', 'WebSearch']
+// O revisor de PRs corrige e roda as suítes (como o do Hermes), mas nunca publica sozinho.
+export const REVIEWER_TOOLS = ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash']
+
+// Comandos que o revisor nunca roda: quem envia e publica é o servidor, depois do portão.
+const FORBIDDEN_COMMANDS: { pattern: RegExp; reason: string }[] = [
+  { pattern: /\bgit\b[^\n;&|]*\bpush\b/, reason: 'O push é feito pelo Harpia depois do portão. Só commite na branch local.' },
+  { pattern: /(^|[\s;&|(])gh\s/, reason: 'O gh não está disponível: o Harpia publica as revisões.' },
+  { pattern: /api\.github\.com|github\.com\/[^\s]*\/(pulls|issues)/, reason: 'Nada de chamar a API do GitHub: o Harpia publica.' },
+  { pattern: /\bgit\b[^\n;&|]*\b(rebase|filter-branch|reset\s+--hard\s+origin)/, reason: 'Nada de reescrever histórico: use merge (nunca rebase).' },
+  { pattern: /(~|\$HOME|\/home\/[^\s/]+|\/data\/homes\/[^\s/]+)\/\.(claude|codex|ssh|config\/gh)\b|(^|[\s/'"=])\.env(['"\s;|&]|$)/, reason: 'Credenciais e .env ficam fora do alcance do revisor (regra dura 8).' }
+]
 
 // Campo com o caminho em cada ferramenta de arquivo.
 const PATH_FIELDS: Record<string, string[]> = {
@@ -49,6 +60,11 @@ export async function checkToolUse(
   cwd: string
 ): Promise<string | null> {
   if (!policy.tools.includes(toolName)) return `A ferramenta ${toolName} não está liberada nesta execução.`
+  if (toolName === 'Bash') {
+    const command = String(input.command ?? '')
+    const forbidden = FORBIDDEN_COMMANDS.find(({ pattern }) => pattern.test(command))
+    return forbidden ? forbidden.reason : null
+  }
   const roots = await Promise.all(policy.roots.map((root) => realTarget(root)))
   for (const field of PATH_FIELDS[toolName] ?? []) {
     const value = input[field]

@@ -3,8 +3,10 @@ import {
   AGENT_LABELS,
   TASK_STATUSES,
   TASK_STATUS_LABELS,
+  PR_QUEUE_LABELS,
   VERDICT_LABELS,
   type AgentSession,
+  type PrQueue,
   type PrReviewVerdict,
   type TaskEvent,
   type TaskStatus,
@@ -39,16 +41,13 @@ function describe(event: TaskEvent, users: Record<number, User>): string {
     case 'pr_merged':
       return `o PR #${event.data.number} de ${name(event.data.userId)} teve merge`
     case 'pr_reviewed': {
-      const counts = event.data.counts as { critical: number; warning: number; suggestion: number } | null
+      const counts = event.data.counts as { critical: number; warning: number } | null
       const verdict = VERDICT_LABELS[event.data.verdict as PrReviewVerdict] ?? 'comentários'
       const parts = counts
-        ? [
-            counts.critical && `${counts.critical} crítico(s)`,
-            counts.warning && `${counts.warning} aviso(s)`,
-            counts.suggestion && `${counts.suggestion} sugestão(ões)`
-          ].filter(Boolean)
+        ? [counts.critical && `${counts.critical} bloqueio(s)`, counts.warning && `${counts.warning} ponto(s) que não bloqueiam`].filter(Boolean)
         : []
-      return `revisou o PR #${event.data.number} com o Claude de ${name(event.data.reviewerId)}: ${verdict}${parts.length ? ` (${parts.join(', ')})` : ''}`
+      const queue = PR_QUEUE_LABELS[event.data.queue as PrQueue] ?? 'revisão'
+      return `${queue} do PR #${event.data.number} pelo revisor de ${name(event.data.reviewerId)}: ${verdict}${parts.length ? ` (${parts.join(', ')})` : ''}`
     }
     case 'summarized': {
       const learnings = Number(event.data.learnings ?? 0)

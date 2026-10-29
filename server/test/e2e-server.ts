@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { buildApp } from '../src/app.ts'
 import type { ProviderFactory } from '../src/chat/providers/types.ts'
-import type { GitHubClient } from '../src/github/client.ts'
+import type { GitHubRepo } from '../src/github/client.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
+import { FakeGitHub } from './fake-github.ts'
 import { fakeGit } from './helpers.ts'
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms))
@@ -39,15 +40,27 @@ const scripted: ProviderFactory = (input) => {
         })()
         return
       }
-      if (input.policy && input.instructions?.includes('revisor de código')) {
+      if (input.policy && input.instructions?.includes('revisor de PRs de')) {
         void (async () => {
           input.hooks.onToolStart(`rd${id}`, 'Read', 'src/pix.ts')
           await sleep(300)
           input.hooks.onToolEnd(`rd${id}`, true, 'export function total(valor) {…}')
+          const sha = /topo=([0-9a-f]{7})/.exec(text)?.[1] ?? 'abc1234'
           const review = {
-            verdict: 'request_changes',
-            summary: 'Adiciona o cálculo do Pix. Falta validar valor negativo.',
-            findings: [{ path: 'src/pix.ts', line: 2, severity: 'warning', title: 'Valor negativo aceito', body: 'O `valor` pode ser negativo.' }]
+            revisoes: [
+              {
+                commit: 'inicial',
+                evento: 'REQUEST_CHANGES',
+                corpo: `Revisei \`${sha}\`. Pedi uma alteração: o \`valor\` pode ser negativo.\n\n**Bloqueios**\n- \`src/pix.ts:2\`: validar valor negativo.`,
+                comentarios: [{ path: 'src/pix.ts', line: 2, body: 'Aqui o `valor` pode chegar negativo; vale recusar antes de calcular.' }]
+              }
+            ],
+            achados: [{ arquivo: 'src/pix.ts', linha: 2, resumo: 'Valor negativo aceito no total do Pix', gravidade: 'bloqueia', status: 'aberto' }],
+            licoes: [],
+            pergunta: null,
+            rascunho: 'travar',
+            estado: 'revisado-bloqueia',
+            resultado: `PR #42 revisada no ${sha}: 1 bloqueio`
           }
           input.hooks.onTextDone(`rv${id}`, '```json\n' + JSON.stringify(review) + '\n```')
           input.hooks.onTurnEnd(null)
@@ -103,38 +116,37 @@ const scripted: ProviderFactory = (input) => {
 const dataDir = resolve(process.argv[2] ?? mkdtempSync(join(tmpdir(), 'harpia-e2e-')))
 
 // GitHub de mentira: o PR "tem merge" quando existe o arquivo merge-<número> na pasta de dados.
-let nextPull = 41
-const github: GitHubClient = {
-  // Um PR aberto por @ana-dev, para a revisão automática.
-  async listOpenPullRequests() {
-    return [
-      {
-        number: 42,
-        title: 'Pagamento com Pix',
-        url: 'https://github.com/clarumi/loja/pull/42',
-        body: 'Adiciona o Pix.',
-        draft: false,
-        authorLogin: 'ana-dev',
-        headSha: 'abc1234def5678',
-        baseRef: 'main',
-        labels: []
-      }
-    ]
-  },
-  async createReview() {
-    return { url: 'https://github.com/clarumi/loja/pull/1#pullrequestreview-1' }
-  },
-  async createPullRequest() {
-    nextPull++
-    return { number: nextPull, url: `https://github.com/clarumi/loja/pull/${nextPull}`, state: 'open', merged: false }
-  },
-  async findOpenPullRequest() {
-    return null
-  },
-  async getPullRequest(_repo, number) {
-    const merged = existsSync(join(dataDir, `merge-${number}`))
-    return { number, url: `https://github.com/clarumi/loja/pull/${number}`, state: merged ? 'closed' : 'open', merged }
+// Cada pessoa conecta o próprio token; aqui o token "ghp_e2e_<login>" vale pela conta <login>.
+class E2EGitHub extends FakeGitHub {
+  private nextPull = 41
+  override async createPullRequest() {
+    this.nextPull++
+    return { number: this.nextPull, url: `https://github.com/clarumi/loja/pull/${this.nextPull}`, state: 'open' as const, merged: false }
   }
+  override async findOpenPullRequest() {
+    return null
+  }
+  override async getPullRequest(_repo: GitHubRepo, number: number) {
+    const merged = existsSync(join(dataDir, `merge-${number}`))
+    return { number, url: `https://github.com/clarumi/loja/pull/${number}`, state: merged ? ('closed' as const) : ('open' as const), merged }
+  }
+}
+const github = new E2EGitHub()
+// Um PR aberto por @carla-dev (de fora da equipe), para a revisão automática.
+github.addPull({
+  number: 42,
+  title: 'Pagamento com Pix',
+  url: 'https://github.com/clarumi/loja/pull/42',
+  body: 'Adiciona o Pix.',
+  authorLogin: 'carla-dev',
+  headSha: 'abc1234def5678',
+  headRef: 'pix'
+})
+github.files.set(42, [{ filename: 'src/pix.ts', patch: '@@ -1 +1,3 @@\n export const taxa = 0\n+export function total(valor) {\n+  return valor - taxa }' }])
+const githubFor = (token: string) => {
+  const login = /^ghp_e2e_([\w-]+)$/.exec(token)?.[1]
+  if (!login) throw new Error('GitHub respondeu 401: Bad credentials')
+  return github.as(login)
 }
 
 // Alterações de mentira na cópia de cada pessoa.
@@ -167,6 +179,7 @@ const { app } = await buildApp({
   },
   agents,
   github,
+  githubFor,
   // Bot de mentira: aceita o vínculo e só guarda as mensagens.
   telegram: {
     getMe: async () => ({ username: 'harpia_teste_bot' }),

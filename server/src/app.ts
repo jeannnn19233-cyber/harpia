@@ -32,6 +32,7 @@ import { PrReviewer } from './reviews/reviewer.ts'
 import { registerRoutineRoutes } from './routines/routes.ts'
 import { RoutineRunner } from './routines/runner.ts'
 import { AiRunner } from './ai/runner.ts'
+import { SecretBox } from './auth/secrets.ts'
 import { Insights } from './insights/insights.ts'
 import { registerInsightRoutes } from './insights/routes.ts'
 import { PersonalAgent } from './vault/agent.ts'
@@ -48,6 +49,8 @@ export interface BuildOptions {
   chatProviders?: ProviderFactory
   chatModels?: ModelLister
   github?: GitHubClient
+  // Cliente do GitHub com o token de cada pessoa (os testes usam um GitHub de mentira).
+  githubFor?: (token: string) => GitHubClient
   // Bot do Telegram para os avisos. null desliga.
   telegram?: TelegramClient | null
   // false: o servidor não lê sozinho as mensagens do bot (os testes chamam pollOnce).
@@ -55,10 +58,19 @@ export interface BuildOptions {
   now?: () => Date
   // Limites de tempo das execuções automáticas (os testes usam valores curtos).
   routineLimits?: { inactivityMs?: number; maxMs?: number }
+  // Ajustes do revisor de PRs (testes: sem espera entre tentativas).
+  reviewer?: { retrySeconds?: number }
 }
 
 // O banco fica numa pasta só do servidor, fora do alcance dos usuários dos agentes.
 // Instalações antigas guardavam o banco direto na pasta de dados: ele é movido uma vez.
+function serverDir(dataDir: string): string {
+  const dir = join(dataDir, 'server')
+  mkdirSync(dir, { recursive: true })
+  chmodSync(dir, 0o700)
+  return dir
+}
+
 function databaseFile(dataDir: string): string {
   const serverDir = join(dataDir, 'server')
   mkdirSync(serverDir, { recursive: true })
@@ -97,6 +109,9 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     github:
       options.github ??
       createGitHubClient({ token: process.env.HARPIA_GITHUB_TOKEN ?? null, apiUrl: process.env.HARPIA_GITHUB_API_URL }),
+    githubFor:
+      options.githubFor ?? ((token) => createGitHubClient({ token, apiUrl: process.env.HARPIA_GITHUB_API_URL })),
+    secrets: SecretBox.fromDir(serverDir(dataDir)),
     notifier: null as unknown as Notifier,
     now: options.now ?? (() => new Date())
   }
@@ -145,8 +160,10 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
   const reviews = new PrReviewer(ctx, chat, {
     pollSeconds: options.config.reviewPollSeconds,
     settleSeconds: options.config.reviewSettleSeconds,
-    maxConcurrent: 2,
-    inactivityMs: options.routineLimits?.inactivityMs
+    maxConcurrent: options.config.maxConcurrentRuns,
+    inactivityMs: options.routineLimits?.inactivityMs,
+    maxMs: options.routineLimits?.maxMs,
+    retrySeconds: options.reviewer?.retrySeconds
   })
   registerReviewRoutes(app, ctx, reviews)
   // Telegram de quem já vinculou a conta: o agente pessoal, com o cofre.

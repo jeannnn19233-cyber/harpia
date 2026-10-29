@@ -48,6 +48,12 @@ export class FakeAgentSystem implements AgentSystem {
     return this.obsidian.get(user.id) ?? []
   }
 
+  // O teste decide o que o revisor "commitou" na cópia.
+  reviewLog: { head: string; commits: { sha: string; message: string; files: string[] }[] } | null = null
+  async branchLog(input: { user: User; path: string; from: string }) {
+    return this.reviewLog ?? { head: input.from, commits: [] }
+  }
+
   readonly folders: string[] = []
   async prepareFolder(user: User, relativePath: string): Promise<string> {
     this.preparedUsers.add(user.id)

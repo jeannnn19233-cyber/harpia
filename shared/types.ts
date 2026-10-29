@@ -21,7 +21,22 @@ export interface User {
   githubLogin: string | null
   // Sugestão de próxima mensagem nas conversas com o Codex (feita pelo Claude da pessoa).
   codexSuggestions: boolean
+  // O GitHub da pessoa está conectado (com o token dela) e o que o revisor dela pode fazer.
+  githubConnected: boolean
+  reviewMode: ReviewMode
+  // Quem o Harpia pede como revisor dos PRs desta pessoa no GitHub.
+  preferredReviewerId: number | null
   createdAt: string
+}
+
+// O que o revisor de PRs de cada pessoa pode fazer em nome dela no GitHub.
+export const REVIEW_MODES = ['full', 'fix', 'comment', 'off'] as const
+export type ReviewMode = (typeof REVIEW_MODES)[number]
+export const REVIEW_MODE_LABELS: Record<ReviewMode, string> = {
+  full: 'Corrige, dá push e aprova',
+  fix: 'Corrige e dá push, sem aprovar',
+  comment: 'Só analisa e comenta',
+  off: 'Desligado (reviso eu mesmo)'
 }
 
 export type CloneStatus = 'pending' | 'cloning' | 'ready' | 'error'
@@ -38,6 +53,15 @@ export interface Project {
   createdAt: string
   // Revisão automática dos PRs abertos no GitHub.
   prReview: boolean
+  // Quem revisa quando o autor não marca ninguém no GitHub.
+  defaultReviewerId: number | null
+}
+
+// Configuração do revisor de um projeto (as regras ficam só no servidor: podem ter detalhes internos).
+export interface ProjectReviewSettings {
+  prReview: boolean
+  defaultReviewerId: number | null
+  rules: string
 }
 
 export interface Task {
@@ -195,6 +219,31 @@ export interface TaskSummary {
 // ou para a memória do projeto, depois que alguém da equipe aprova.
 export type LearningTarget = 'agents_md' | 'memory'
 
+// Memória por achado de cada PR, entre as rodadas (mesmo formato do revisor_memoria.py do Hermes).
+export interface PrFindingHistory {
+  rodada: number
+  sha: string
+  status: PrFindingStatus
+  nota: string
+}
+export type PrFindingStatus = 'aberto' | 'resolvido' | 'retirado'
+export interface PrFinding {
+  id: string
+  arquivo: string | null
+  linha: number | null
+  resumo: string
+  gravidade: 'bloqueia' | 'nao-bloqueia'
+  status: PrFindingStatus
+  historico: PrFindingHistory[]
+}
+export interface PrMemory {
+  numero: number
+  achados: PrFinding[]
+  rodadas: { n: number; sha: string; em: string; evento: string | null; resumo: string }[]
+  sha_revisado: string | null
+  visto_ate: string | null
+}
+
 export interface Learning {
   id: number
   taskId: number
@@ -216,6 +265,16 @@ export const LEARNING_TARGET_LABELS: Record<LearningTarget, string> = {
 
 // Revisão automática de um PR (um commit), feita pelo Claude do autor do PR.
 export type PrReviewStatus = 'waiting' | 'running' | 'posted' | 'failed' | 'skipped'
+// Filas do revisor (como no revisor do Hermes), em ordem de prioridade.
+export type PrQueue = 'conflito' | 'corrigir' | 'adiantar' | 'revisar' | 'retestar' | 'assinatura'
+export const PR_QUEUE_LABELS: Record<PrQueue, string> = {
+  conflito: 'conflito com a branch principal',
+  corrigir: 'respondendo a uma revisão',
+  adiantar: 'análise antecipada',
+  revisar: 'revisão',
+  retestar: 'teste local (CI bloqueado)',
+  assinatura: 'limpeza de assinatura'
+}
 export type PrReviewVerdict = 'approve' | 'request_changes' | 'comment'
 export type FindingSeverity = 'critical' | 'warning' | 'suggestion'
 
@@ -233,8 +292,17 @@ export interface PrReview {
   title: string
   url: string
   authorLogin: string
-  // De quem é o Claude que revisou (o autor do PR, ou quem pediu a revisão).
+  queue: PrQueue
+  // Quem trabalha nesta fila: o Claude e o token do GitHub dessa pessoa.
   reviewerId: number | null
+  // Uma linha com o que foi feito (como a resposta final do revisor do Hermes).
+  line: string | null
+  // Commit enviado pelo revisor com as correções, se houve.
+  pushedSha: string | null
+  // Pergunta de produto achada no corpo do PR: o revisor para antes de aprovar e espera a resposta.
+  question: string | null
+  answer: string | null
+  attempts: number
   status: PrReviewStatus
   verdict: PrReviewVerdict | null
   summary: string | null

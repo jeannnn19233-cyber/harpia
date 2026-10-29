@@ -1,45 +1,101 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentAccounts } from '../../../shared/types.ts'
+import { REVIEW_MODE_LABELS, REVIEW_MODES, type AgentAccounts, type ReviewMode, type User } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { useHarpia } from '../lib/store.ts'
 import { Dialog } from './Dialogs.tsx'
 import { TerminalView, type TerminalControls } from './TerminalView.tsx'
 
 // "Minhas IAs": cada pessoa conecta a própria conta do Claude Code e do Codex no servidor.
-// Usuário do GitHub: os PRs da pessoa são revisados no Claude dela.
-function GitHubLogin() {
-  const { me, setMe } = useHarpia()
-  const [value, setValue] = useState(me?.githubLogin ?? '')
-  const [state, setState] = useState<{ error: string | null; saved: boolean }>({ error: null, saved: false })
-  const save = async () => {
+// GitHub de cada pessoa: o revisor de PRs dela publica, corrige e aprova com este token, em nome dela.
+function GitHubAccount() {
+  const { me, setMe, users } = useHarpia()
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (!me) return null
+  const run = async (action: () => Promise<{ user: User }>) => {
+    setBusy(true)
     try {
-      const { user } = await api.updateMe({ githubLogin: value.trim() || null })
-      setMe(user)
-      setState({ error: null, saved: true })
+      setMe((await action()).user)
+      setError(null)
+      setToken('')
     } catch (err) {
-      setState({ error: (err as Error).message, saved: false })
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
     }
   }
+  const colleagues = Object.values(users).filter((user) => user.id !== me.id)
   return (
-    <div className="mb-4 rounded-lg border border-zinc-800 px-4 py-3">
-      <p className="text-sm font-medium">Seu usuário do GitHub</p>
-      <p className="mb-2 text-xs text-zinc-400">Os seus PRs são revisados automaticamente no seu Claude (veja "Revisões" no quadro).</p>
-      <div className="flex gap-2">
-        <input
-          className="input max-w-60"
-          value={value}
-          placeholder="ex.: ana-souza"
-          onChange={(e) => {
-            setValue(e.target.value)
-            setState({ error: null, saved: false })
-          }}
-        />
-        <button className="btn-outline py-1.5" onClick={() => void save()} disabled={(me?.githubLogin ?? '') === value.trim()}>
-          Salvar
-        </button>
-        {state.saved && <span className="self-center text-xs text-emerald-400">Salvo</span>}
+    <div className="mb-4 space-y-3 rounded-lg border border-zinc-800 px-4 py-3">
+      <div>
+        <p className="text-sm font-medium">Seu GitHub (revisor de PRs)</p>
+        <p className="text-xs text-zinc-400">
+          O seu revisor revisa os PRs dos colegas no seu Claude e publica no GitHub com o seu token, na primeira pessoa, como se fosse você.
+          O token fica cifrado no servidor e nunca é mostrado de novo nem entregue à IA.
+        </p>
       </div>
-      {state.error && <p className="mt-1 text-xs text-rose-400">{state.error}</p>}
+      {me.githubConnected ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-emerald-400">Conectado como @{me.githubLogin}</span>
+          <button className="btn-ghost py-1 text-xs" disabled={busy} onClick={() => void run(() => api.disconnectGitHub())}>
+            Desconectar
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <div className="flex gap-2">
+            <input
+              className="input max-w-80"
+              type="password"
+              autoComplete="off"
+              value={token}
+              placeholder="github_pat_…"
+              onChange={(e) => setToken(e.target.value)}
+            />
+            <button className="btn-primary py-1.5" disabled={busy || token.trim().length < 20} onClick={() => void run(() => api.connectGitHub(token.trim()))}>
+              Conectar
+            </button>
+          </div>
+          <p className="text-xs text-zinc-500">
+            Crie em GitHub → Settings → Developer settings → Fine-grained tokens, só para os repositórios da equipe, com permissão de
+            leitura e escrita em <b>Contents</b> e <b>Pull requests</b> (e leitura em <b>Checks</b>).
+          </p>
+        </div>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-xs text-zinc-400">
+          O que o meu revisor pode fazer
+          <select
+            className="input mt-1"
+            value={me.reviewMode}
+            onChange={(e) => void run(() => api.updateMe({ reviewMode: e.target.value as ReviewMode }))}
+          >
+            {REVIEW_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {REVIEW_MODE_LABELS[mode]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-zinc-400">
+          Quem revisa os meus PRs
+          <select
+            className="input mt-1"
+            value={me.preferredReviewerId ?? ''}
+            onChange={(e) => void run(() => api.updateMe({ preferredReviewerId: e.target.value ? Number(e.target.value) : null }))}
+          >
+            <option value="">O padrão do projeto</option>
+            {colleagues.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name}
+                {user.githubConnected ? '' : ' (sem GitHub conectado)'}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {error && <p className="text-xs text-rose-400">{error}</p>}
     </div>
   )
 }
@@ -97,7 +153,7 @@ export function AccountsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog title="Minhas IAs" onClose={onClose} wide>
-      <GitHubLogin />
+      <GitHubAccount />
       <CodexSuggestions />
       <div className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-zinc-800 px-4 py-3">

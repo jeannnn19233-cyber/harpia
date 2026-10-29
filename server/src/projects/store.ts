@@ -12,6 +12,7 @@ interface ProjectRow {
   created_by: number
   created_at: string
   pr_review: number
+  default_reviewer_id: number | null
 }
 
 function toProject(row: ProjectRow): Project {
@@ -25,7 +26,8 @@ function toProject(row: ProjectRow): Project {
     cloneError: row.clone_error,
     createdBy: row.created_by,
     createdAt: row.created_at,
-    prReview: row.pr_review === 1
+    prReview: row.pr_review === 1,
+    defaultReviewerId: row.default_reviewer_id
   }
 }
 
@@ -39,8 +41,27 @@ export function getProject(db: Db, id: number): Project | null {
   return row ? toProject(row) : null
 }
 
-export function setProjectReview(db: Db, id: number, enabled: boolean): Project | null {
-  db.prepare('UPDATE projects SET pr_review = ? WHERE id = ?').run(enabled ? 1 : 0, id)
+export function setProjectReview(db: Db, id: number, enabled: boolean, now: Date): Project | null {
+  // "review_since": a fila de correções só pega revisões de pessoas feitas depois de ligar.
+  db.prepare("UPDATE projects SET pr_review = ?, review_since = CASE WHEN ? = 1 AND (pr_review = 0 OR review_since IS NULL) THEN ? ELSE review_since END WHERE id = ?").run(
+    enabled ? 1 : 0,
+    enabled ? 1 : 0,
+    now.toISOString(),
+    id
+  )
+  return getProject(db, id)
+}
+
+export function getReviewSettings(db: Db, id: number): { since: string | null; rules: string } {
+  const row = db.prepare('SELECT review_since, review_rules FROM projects WHERE id = ?').get(id) as
+    | { review_since: string | null; review_rules: string }
+    | undefined
+  return { since: row?.review_since ?? null, rules: row?.review_rules ?? '' }
+}
+
+export function updateReviewSettings(db: Db, id: number, fields: { defaultReviewerId?: number | null; rules?: string }): Project | null {
+  if (fields.defaultReviewerId !== undefined) db.prepare('UPDATE projects SET default_reviewer_id = ? WHERE id = ?').run(fields.defaultReviewerId, id)
+  if (fields.rules !== undefined) db.prepare('UPDATE projects SET review_rules = ? WHERE id = ?').run(fields.rules, id)
   return getProject(db, id)
 }
 
