@@ -20,6 +20,19 @@ import { Routines } from './routines/Routines.tsx'
 import { MemoryDialog, useOpenFindings, WatcherDialog } from './Watcher.tsx'
 import { TaskWorkspace } from './task/TaskWorkspace.tsx'
 
+// Explica em português o erro do git ao clonar (o detalhe técnico aparece embaixo).
+function cloneProblem(error: string | null): string {
+  const text = error ?? ''
+  if (/could not read Username|terminal prompts disabled|Authentication failed|403|401/i.test(text)) {
+    return 'o servidor não tem permissão no GitHub. Confira se HARPIA_GITHUB_TOKEN está definido no Coolify e se o token tem acesso a este repositório (em repositórios de organização, o token precisa ser criado para a organização).'
+  }
+  if (/Repository not found|not found/i.test(text)) {
+    return 'o GitHub não encontrou o repositório. Confira o endereço ou se o token do servidor tem acesso a ele (repositório privado aparece como "não encontrado" sem acesso).'
+  }
+  if (/não existe no repositório/.test(text)) return text
+  return 'o clone falhou.'
+}
+
 function lastTask(projectId: number): number | null {
   try {
     return Number(localStorage.getItem(`harpia.studio.task.${projectId}`)) || null
@@ -455,7 +468,10 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
           )}
           {project?.cloneStatus === 'error' && (
             <div className="studio-error">
-              O repositório não foi conectado.
+              <span>
+                O repositório não foi conectado: {cloneProblem(project.cloneError)}
+                {project.cloneError && <small className="studio-error-detail">{project.cloneError.slice(0, 300)}</small>}
+              </span>
               <button
                 onClick={() =>
                   void api.recloneProject(project.id).then(({ project }) => useHarpia.getState().upsertProject(project))
