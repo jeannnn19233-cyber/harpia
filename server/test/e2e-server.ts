@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path'
 import { buildApp } from '../src/app.ts'
 import type { ProviderFactory } from '../src/chat/providers/types.ts'
 import type { GitHubRepo } from '../src/github/client.ts'
+import type { CoolifyClient } from '../src/monitors/coolify.ts'
 import { FakeAgentSystem } from './fake-agents.ts'
 import { FakeGitHub } from './fake-github.ts'
 import { fakeGit } from './helpers.ts'
@@ -149,6 +150,24 @@ const githubFor = (token: string) => {
   return github.as(login)
 }
 
+// Coolify de mentira para os vigias: um deploy concluído e uma tarefa agendada que falhou.
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60000).toISOString()
+const coolify: CoolifyClient = {
+  listApplications: async () => [{ uuid: 'loja-app', name: 'loja (produção)' }],
+  getApplication: async () => ({ uuid: 'loja-app', name: 'loja (produção)', status: 'running:healthy', gitBranch: 'main' }),
+  listDeployments: async () => [
+    { id: 31, uuid: 'd31', status: 'finished', commit: 'abc1234def5678', commitMessage: 'Merge pull request #41', pullRequestId: 0, createdAt: minutesAgo(30), updatedAt: minutesAgo(27), logs: [] }
+  ],
+  listScheduledTasks: async () => [
+    { uuid: 't1', name: 'expirar-propostas', enabled: true, frequency: '*/5 * * * *', createdAt: minutesAgo(600) },
+    { uuid: 't2', name: 'anonimizar-leads', enabled: true, frequency: '0 7 * * *', createdAt: minutesAgo(6000) }
+  ],
+  listExecutions: async (_app, task) =>
+    task === 't1'
+      ? [{ status: 'failed', message: 'exit code 1: relation "propostas" does not exist', startedAt: minutesAgo(2), finishedAt: minutesAgo(2), createdAt: minutesAgo(2) }]
+      : [{ status: 'success', message: null, startedAt: minutesAgo(60), finishedAt: minutesAgo(60), createdAt: new Date().toISOString() }]
+}
+
 // Alterações de mentira na cópia de cada pessoa.
 const agents = new FakeAgentSystem()
 agents.changes = [
@@ -172,6 +191,7 @@ const { app } = await buildApp({
     maxConcurrentRuns: 3,
     reviewPollSeconds: 0,
     reviewSettleSeconds: 0,
+    monitorPollSeconds: 0,
     vaultSyncSeconds: 0,
     aiInsights: true,
     staleHours: 48,
@@ -180,6 +200,8 @@ const { app } = await buildApp({
   agents,
   github,
   githubFor,
+  coolify,
+  probe: async (url) => ({ status: 200, body: url.includes('ready') ? '{"status":"ok","banco":"ok"}' : 'ok' }),
   // Bot de mentira: aceita o vínculo e só guarda as mensagens.
   telegram: {
     getMe: async () => ({ username: 'harpia_teste_bot' }),

@@ -23,6 +23,7 @@ export class FakeGitHub implements GitHubClient {
   readonly checks = new Map<string, CheckRunInfo[]>()
   readonly branches = new Map<string, string>()
   readonly comments = new Map<number, IssueCommentInfo[]>()
+  readonly commits = new Map<string, { sha: string; message: string; date: string }>()
   readonly published: { by: string; number: number; commitId: string; event: ReviewEvent; body: string; comments: ReviewComment[] }[] = []
   readonly edits: { by: string; what: string; id: number; body: string }[] = []
   readonly requested: { by: string; number: number; logins: string[] }[] = []
@@ -90,6 +91,11 @@ export class FakeGitHub implements GitHubClient {
   }
   async getBranchSha(_repo: GitHubRepo, branch: string) {
     return this.branches.get(branch) ?? 'main000'
+  }
+  async getCommit(_repo: GitHubRepo, ref: string) {
+    const commit = this.commits.get(ref)
+    if (!commit) throw new Error(`GitHub respondeu 404: commit ${ref}`)
+    return commit
   }
   async listIssueComments(_repo: GitHubRepo, number: number) {
     return this.comments.get(number) ?? []

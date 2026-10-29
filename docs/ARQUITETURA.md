@@ -23,6 +23,7 @@ Ordem aprovada: 1 → 3 → 5 → 4 → 2.
 | 2 | Conversas com o Claude e o Codex fora das tasks, com o login de cada pessoa e escolha do modelo | **pronta** |
 | 4b | Partes com IA: julgar tasks parecidas, resumo de cada task concluída, sugestões de aprendizado para o `AGENTS.md` e sugestão de próxima mensagem no Codex. Rodam no Claude Code de cada pessoa envolvida (decisão dos sócios), nunca numa conta central | **pronta** |
 | 6 | Como no Hermes: rotinas agendadas (cron), revisão automática dos PRs no GitHub e o agente pessoal de cada um no Telegram, com o cofre do Obsidian | **pronta** |
+| 6b | Revisor de PRs igual ao do Hermes (corrige, roda as suítes, envia commits e aprova, em nome de um colega com o token dele) e os vigias do deploy e das tarefas agendadas no Coolify | **pronta** |
 
 ## Onde roda
 
@@ -251,24 +252,75 @@ em [estudos/hermes.md](estudos/hermes.md#cron-cofre-e-revisão-de-pr-fase-6).
   segura a rotina por 1 hora e avisa uma vez. Agente parado por 10 minutos é interrompido.
 - No máximo 3 execuções automáticas ao mesmo tempo no servidor (`HARPIA_MAX_CONCURRENT_RUNS`).
 
-### Revisão de PRs (botão "Revisões" no quadro)
+### Revisão de PRs (botão "Revisões" no quadro) — revisor v2
 
-- Ligada por projeto. A cada 3 minutos o servidor olha os PRs abertos no GitHub, sem IA. Cada
-  commit (head SHA) é revisado uma vez para a equipe toda, depois de 3 minutos sem commits
-  novos. Rascunhos e PRs com o rótulo `sem-revisao-ia` ficam de fora.
-- A revisão roda no **Claude do autor do PR**: cada pessoa informa o usuário do GitHub em
-  "Minhas IAs". PR de quem não está no Harpia fica "pulado" até alguém pedir a revisão com a
-  própria conta ("Revisar agora").
-- O agente só lê uma cópia do commit (Read, Glob e Grep), recebe o diff marcado como conteúdo
-  não confiável e responde em JSON. O servidor confere o JSON, pede o formato de novo uma vez e
-  calcula o veredito pelas regras: algum crítico ou aviso = "pedir mudanças".
-- Publicação no GitHub **sempre como comentário**, nunca aprovação (com proteção de branch, uma
-  aprovação da IA contaria como aprovação humana). Achados em linhas do diff viram comentários
-  na linha; os demais vão no resumo. Se o GitHub recusar as linhas, tudo vai no resumo.
-- Segredos no diff (tokens, chaves, senhas) viram aviso crítico automático e são mascarados em
-  tudo que sai do servidor: para o modelo, para o GitHub e para o Telegram.
-- Resumo no Telegram do autor; se o PR saiu de uma task do Harpia, a revisão entra no histórico
-  da task ("Harpia revisou o PR #12…").
+Port do revisor-prs-clarumi do Hermes, generalizado para a equipe: **cada pessoa tem o próprio
+revisor**, que trabalha no Claude Code dela e publica no GitHub com o token dela, na primeira
+pessoa, sem marca de ferramenta.
+
+- **Token por pessoa.** Em "Minhas IAs" cada um conecta um token do GitHub (cifrado no servidor
+  com AES-256-GCM, chave em `/data/server/secret.key`; nunca volta para a tela nem chega à IA) e
+  escolhe o que o revisor pode fazer: corrige + push + aprova; corrige + push sem aprovar; só
+  comenta; desligado.
+- **Quem revisa é um colega, nunca o autor.** Ordem: quem o autor marcou no GitHub (com o revisor
+  ligado); senão o "quem revisa os meus PRs" do autor; senão o revisor padrão do projeto. Se o autor
+  não marcou ninguém, o Harpia marca no GitHub o preferido (uma vez por PR, como a marcação
+  automática do Hermes). Ninguém aprova o próprio PR.
+- **Filas sem IA**, a cada 3 minutos, na ordem de prioridade do Hermes: CONFLITO de PR aprovada,
+  CORRIGIR (revisão de uma pessoa num PR de quem tem o revisor ligado: o revisor do autor trata),
+  CONFLITO, ADIANTAR (o autor marcou alguém que revisa à mão: o revisor do autor adianta a análise,
+  só comentando), REVISAR (cada commit novo, depois de 3 minutos sem commits) e RETESTAR (CI que
+  falhou em menos de 30 s, como bloqueio de faturamento do Actions). ASSINATURA roda sem IA: tira
+  "Generated with Claude Code" e parecidos do corpo, das revisões e dos comentários do autor.
+  Um PR por vez por pessoa; até 3 tentativas por entrada, com espera entre elas; depois, "tentar
+  de novo" na tela. Rascunhos e PRs com o rótulo `sem-revisao-ia` ficam de fora.
+- **Execução.** O revisor recebe uma cópia do PR na branch local `harpia-revisao/pr-N` (com
+  `origin/main` e os outros PRs abertos para comparar), pode ler, editar, rodar comandos (tipos,
+  lint, testes) e commitar. Não tem como enviar nada: a cópia não tem credencial do GitHub, e
+  `git push`, `gh`, chamadas à API do GitHub, rebase e leitura de `.env`/credenciais são barrados.
+  Responde em JSON: revisões (presas ao commit inicial ou ao commit final das correções),
+  achados, lições, pergunta de produto e travar/destravar rascunho.
+- **Portão antes de publicar** (port do `revisor_checagem.py`): commit preso ao topo do PR,
+  corpo com o hash de 7 caracteres, sem marca de ferramenta, sem segredo, comentários só em
+  linhas do diff (os outros vão para o corpo), sem aprovar com bloqueio aberto na memória, sem
+  aprovar nas filas que só comentam, sem aprovar com pergunta em aberto, mensagens de commit
+  na voz da pessoa. Se recusar, o revisor recebe os erros e corrige (até 3 voltas).
+- **Push** com o token de quem revisa, normal (fast-forward), nunca forçado. Se a branch andou
+  durante a revisão, nada é enviado e a entrada volta para a fila no topo novo. Nunca faz merge.
+- **Memória por achado** em cada PR (A1, A2…, bloqueia/não bloqueia, aberto/resolvido/retirado,
+  histórico por rodada) e **lições** do projeto (append-only), como no Hermes.
+- **Regras do revisor por projeto** (a "skill") ficam no banco, editadas na tela "Revisões",
+  nunca no repositório. Vazio = regras gerais de segurança e boas práticas.
+- **Pergunta de produto** no corpo do PR: o revisor não aprova, pergunta no Telegram da pessoa
+  e continua quando ela responde na tela.
+- **Vigia do revisor** (port do `vigia_cron_revisor.py`): 3 falhas seguidas pelo mesmo motivo
+  avisam no Telegram uma vez; a volta ao normal também avisa.
+- **Limite conhecido:** suítes que precisam de Docker (integração com Postgres de verdade) não
+  rodam no container do Harpia, que de propósito não tem acesso ao Docker do servidor. O
+  revisor diz no texto o que não conseguiu rodar.
+- Se o PR saiu de uma task do Harpia, cada execução entra no histórico da task.
+
+### Vigias do deploy (botão "Deploy" no quadro)
+
+Port do `vigia_deploy_clarumi.py` e do `vigia_crons_coolify_clarumi.py` do Hermes, sem SSH:
+leem a **API do Coolify com um token só de leitura** (`HARPIA_COOLIFY_URL` e
+`HARPIA_COOLIFY_TOKEN`, só no servidor). Sem IA. Nunca reiniciam, nunca refazem deploy, nunca
+rodam uma tarefa. A cada 5 minutos, por projeto ligado:
+
+- **Deploy da branch principal:** concluído (confere se a aplicação está saudável e se as URLs
+  de saúde respondem, esperando terminar outro deploy em andamento para não dar alarme falso),
+  falhou (com as linhas de erro do log, sem nada com cara de segredo), preso há mais de 20 min,
+  e merge na branch principal sem deploy há mais de 10 min (webhook que falhou). Também lista
+  tarefas agendadas que falharam depois do deploy.
+- **Tarefas agendadas do Coolify:** falhou, desligada, ou deixou de rodar no horário (folga de 2
+  intervalos, entre 10 e 30 min: a cada 5 min avisa com ~15 min sem rodar; a diária das 07h
+  avisa depois das 07h30). Não cobra execução de antes de ligar o vigia nem de antes da tarefa
+  existir.
+- **URLs de saúde:** HTTP 200 e, se configurado, campos no JSON (ex.: `status=ok`, `banco=ok`).
+- **Avisos só na mudança:** a primeira volta manda o panorama inteiro; depois, só problema novo,
+  problema que mudou e o que voltou ao normal. Falha do próprio vigia (Coolify fora do ar) também
+  avisa, uma vez. Os avisos vão para o Telegram de quem foi marcado (ou dos administradores) e
+  ficam na tela.
 
 ### Agente pessoal no Telegram ("Meu agente")
 

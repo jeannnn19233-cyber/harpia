@@ -439,6 +439,32 @@ const MIGRATIONS: string[] = [
     text TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+  `,
+  // 13: vigias do deploy e das tarefas agendadas do Coolify, por projeto (port dos vigias do Hermes).
+  `
+  CREATE TABLE project_monitors (
+    project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    coolify_app_uuid TEXT NOT NULL DEFAULT '',
+    health_checks TEXT NOT NULL DEFAULT '[]',
+    timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+    notify_user_ids TEXT NOT NULL DEFAULT '[]',
+    -- Estado de cada vigia entre as voltas (como os arquivos de estado dos scripts do Hermes).
+    deploy_state TEXT,
+    watch_state TEXT,
+    watching_since TEXT,
+    panorama TEXT,
+    checked_at TEXT,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE monitor_events (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX monitor_events_project ON monitor_events(project_id, id);
   `
 ]
 

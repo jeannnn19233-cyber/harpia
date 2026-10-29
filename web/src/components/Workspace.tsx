@@ -8,6 +8,7 @@ import { AgentDialog } from './AgentDialog.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Board } from './Board.tsx'
 import { Conversations } from './chat/Conversations.tsx'
+import { MonitorDialog } from './monitors/MonitorDialog.tsx'
 import { ReviewsDialog } from './reviews/ReviewsDialog.tsx'
 import { Routines } from './routines/Routines.tsx'
 import { Dialog, ProjectForm, TeamDialog } from './Dialogs.tsx'
@@ -37,7 +38,7 @@ function CloneBadge({ project }: { project: Project }) {
 export function Workspace({ onLogout }: { onLogout: () => void }) {
   const { me, users, online, connected, projects, projectId, openTaskId, selectProject, setTasks, agentsStatus, view, setView } =
     useHarpia()
-  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | 'reviews' | 'agent' | null>(null)
+  const [dialog, setDialog] = useState<'project' | 'team' | 'accounts' | 'watcher' | 'memory' | 'reviews' | 'monitor' | 'agent' | null>(null)
   const openFindings = useOpenFindings(projectId)
   const pendingLearnings = usePendingLearnings(projectId)
 
@@ -53,6 +54,8 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
       .then((result) => current && result && useHarpia.getState().upsertPulls(result.pullRequests))
       .then(() => api.findings(projectId))
       .then((result) => current && result && useHarpia.getState().upsertFindings(result.findings))
+      .then(() => api.monitor(projectId))
+      .then((result) => current && result && useHarpia.getState().setMonitor(result.monitor, result.events))
       .catch(() => undefined)
     return () => {
       current = false
@@ -60,11 +63,12 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
   }, [projectId, setTasks])
 
   const project = projects.find((item) => item.id === projectId) ?? null
+  const monitor = useHarpia((state) => (projectId ? state.monitors[projectId] : undefined))
   const onlineUsers = online.map((id) => users[id]).filter(Boolean)
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-2.5">
+      <header className="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-4 py-2.5 [&_.btn-ghost]:px-2.5">
         <span className="text-lg font-bold tracking-tight text-brand-400">Harpia</span>
         <div className="flex rounded-lg border border-zinc-800 p-0.5 text-sm" role="tablist">
           {(
@@ -121,6 +125,14 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
             <button className="btn-ghost py-1.5" onClick={() => setDialog('reviews')} title="Revisão automática dos PRs no GitHub">
               Revisões
               {project?.prReview && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+            </button>
+          )}
+          {view === 'board' && projectId && (
+            <button className="btn-ghost py-1.5" onClick={() => setDialog('monitor')} title="Vigias do deploy e das tarefas agendadas no Coolify">
+              Deploy
+              {monitor?.enabled && (
+                <span className={`h-1.5 w-1.5 rounded-full ${monitor.panorama.some((item) => item.problem) ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+              )}
             </button>
           )}
           {view === 'board' && projectId && (
@@ -183,6 +195,7 @@ export function Workspace({ onLogout }: { onLogout: () => void }) {
       {dialog === 'accounts' && <AccountsDialog onClose={() => setDialog(null)} />}
       {dialog === 'agent' && <AgentDialog onClose={() => setDialog(null)} />}
       {dialog === 'watcher' && projectId && <WatcherDialog projectId={projectId} onClose={() => setDialog(null)} />}
+      {dialog === 'monitor' && projectId && <MonitorDialog projectId={projectId} onClose={() => setDialog(null)} />}
       {dialog === 'reviews' && projectId && <ReviewsDialog projectId={projectId} onClose={() => setDialog(null)} />}
       {dialog === 'memory' && projectId && <MemoryDialog projectId={projectId} onClose={() => setDialog(null)} />}
 

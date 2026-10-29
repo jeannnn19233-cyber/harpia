@@ -9,6 +9,7 @@ import type { ChatManager } from '../chat/manager.ts'
 import { insertChat } from '../chat/store.ts'
 import type { AppContext } from '../context.ts'
 import { parseGitHubRepo, type GitHubClient, type GitHubRepo, type PullDetail, type PullReviewInfo, type ReviewComment } from '../github/client.ts'
+import { withGitHubReader } from '../github/reader.ts'
 import { HttpError } from '../http/errors.ts'
 import { getMemory } from '../memory/store.ts'
 import { projectPath } from '../projects/routes.ts'
@@ -147,28 +148,10 @@ export class PrReviewer {
     this.dispatch()
   }
 
-  // Quem lê os PRs: o token do servidor, se houver; senão o de alguém da equipe com o GitHub conectado.
-  private async reader(repo: GitHubRepo): Promise<{ client: GitHubClient; open: Awaited<ReturnType<GitHubClient['listOpenPullRequests']>> }> {
-    try {
-      return { client: this.ctx.github, open: await this.ctx.github.listOpenPullRequests(repo) }
-    } catch (error) {
-      for (const user of listUsers(this.ctx.db).filter((person) => person.githubConnected)) {
-        const account = this.clientFor(user)
-        if (!account) continue
-        try {
-          return { client: account.client, open: await account.client.listOpenPullRequests(repo) }
-        } catch {
-          // Este token não lê o repositório: tenta o de outra pessoa.
-        }
-      }
-      throw error
-    }
-  }
-
   private async pollProject(project: Project, repo: GitHubRepo): Promise<void> {
     const team = this.team(project)
     const since = getReviewSettings(this.ctx.db, project.id).since
-    const { client: github, open } = await this.reader(repo)
+    const { client: github, open } = await withGitHubReader(this.ctx, async (client) => ({ client, open: await client.listOpenPullRequests(repo) }))
     const baseShas = new Map<string, string>()
     for (const summary of open) {
       if (summary.labels.includes(SKIP_LABEL)) continue

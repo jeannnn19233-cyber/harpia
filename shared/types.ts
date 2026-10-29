@@ -500,3 +500,40 @@ export type RealtimeMessage =
   | { type: 'pull_request'; pullRequest: PullRequest }
   | { type: 'finding'; finding: Finding }
   | { type: 'memory'; memory: ProjectMemory }
+  | { type: 'monitor'; monitor: ProjectMonitor }
+  | { type: 'monitor_event'; event: MonitorEvent }
+
+// Vigias de um projeto no Coolify (port do vigia-deploy e do vigia-crons do Hermes): deploy da
+// branch principal, tarefas agendadas e URLs de saúde. Só leitura, avisos só quando algo muda.
+export interface HealthCheck {
+  url: string
+  // Campos esperados no JSON da resposta (ex.: status=ok, banco=ok). Vazio = só HTTP 200.
+  expect: Record<string, string>
+}
+
+export interface MonitorItem {
+  key: string
+  name: string
+  problem: string | null
+}
+
+export interface ProjectMonitor {
+  projectId: number
+  enabled: boolean
+  coolifyAppUuid: string
+  healthChecks: HealthCheck[]
+  timezone: string
+  // Quem recebe os avisos no Telegram (vazio = administradores).
+  notifyUserIds: number[]
+  // O que estava cada item na última volta.
+  panorama: MonitorItem[]
+  lastDeploy: { id: number; status: string; commit: string | null; at: string } | null
+  checkedAt: string | null
+}
+
+export interface MonitorEvent {
+  id: number
+  projectId: number
+  text: string
+  createdAt: string
+}

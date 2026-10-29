@@ -37,6 +37,8 @@ export interface AppConfig {
   // ficar sem commits novos antes da revisão.
   reviewPollSeconds: number
   reviewSettleSeconds: number
+  // Vigias do Coolify (deploy e tarefas agendadas): intervalo entre as voltas (0 desliga).
+  monitorPollSeconds: number
   // De quanto em quanto tempo o servidor confere se a sincronização do cofre com o Obsidian está ligada (0 desliga).
   vaultSyncSeconds: number
   // Vigia com IA (fase 4b): tasks parecidas confirmadas, resumos, aprendizados e sugestões no Codex.

@@ -9,7 +9,10 @@ import type {
   ChatModel,
   Learning,
   TaskSummary,
+  MonitorEvent,
   PrMemory,
+  ProjectMonitor,
+  HealthCheck,
   PrReview,
   ProjectReviewSettings,
   ReviewMode,
@@ -147,6 +150,15 @@ export const api = {
   answerReview: (id: number, text: string) => request<{ review: PrReview }>('POST', `/api/reviews/${id}/answer`, { text }),
   retryReview: (id: number) => request<{ review: PrReview }>('POST', `/api/reviews/${id}/retry`, {}),
   pullMemory: (projectId: number, number: number) => request<{ memory: PrMemory }>('GET', `/api/projects/${projectId}/pulls/${number}/memory`),
+  monitor: (projectId: number) =>
+    request<{ monitor: ProjectMonitor; events: MonitorEvent[]; coolifyConfigured: boolean }>('GET', `/api/projects/${projectId}/monitor`),
+  monitorApplications: () => request<{ applications: { uuid: string; name: string }[] }>('GET', '/api/monitor/applications'),
+  saveMonitor: (
+    projectId: number,
+    input: { enabled: boolean; coolifyAppUuid: string; healthChecks: HealthCheck[]; timezone: string; notifyUserIds: number[] }
+  ) => request<{ monitor: ProjectMonitor }>('PUT', `/api/projects/${projectId}/monitor`, input),
+  checkMonitor: (projectId: number) =>
+    request<{ monitor: ProjectMonitor; events: MonitorEvent[] }>('POST', `/api/projects/${projectId}/monitor/check`, {}),
   vault: () => request<VaultStatus>('GET', '/api/me/vault'),
   routines: () => request<{ routines: Routine[] }>('GET', '/api/routines'),
   createRoutine: (input: RoutineInput) => request<{ routine: Routine }>('POST', '/api/routines', input),

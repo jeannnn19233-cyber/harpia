@@ -86,6 +86,8 @@ export interface GitHubClient {
   listPullFiles(repo: GitHubRepo, number: number): Promise<{ filename: string; patch: string | null }[]>
   listCheckRuns(repo: GitHubRepo, sha: string): Promise<CheckRunInfo[]>
   getBranchSha(repo: GitHubRepo, branch: string): Promise<string>
+  // Último commit de uma branch, com a mensagem e a data (vigia de deploy: merge sem deploy).
+  getCommit(repo: GitHubRepo, ref: string): Promise<{ sha: string; message: string; date: string }>
   listIssueComments(repo: GitHubRepo, number: number): Promise<IssueCommentInfo[]>
   createReview(
     repo: GitHubRepo,
@@ -243,6 +245,13 @@ export function createGitHubClient(options: { token: string | null; apiUrl?: str
     async getBranchSha(repo, branch) {
       const commit = await call<{ sha: string }>('GET', `${base(repo)}/commits/${encodeURIComponent(branch)}`)
       return commit.sha
+    },
+    async getCommit(repo, ref) {
+      const commit = await call<{ sha: string; commit: { message: string; committer: { date: string } | null } }>(
+        'GET',
+        `${base(repo)}/commits/${encodeURIComponent(ref)}`
+      )
+      return { sha: commit.sha, message: commit.commit.message, date: commit.commit.committer?.date ?? '' }
     },
     async listIssueComments(repo, number) {
       const list = await call<{ id: number; user: { login: string } | null; body: string | null }[]>(

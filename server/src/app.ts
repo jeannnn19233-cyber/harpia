@@ -28,6 +28,9 @@ import { RealtimeHub } from './realtime/hub.ts'
 import { registerRealtimeRoutes } from './realtime/routes.ts'
 import { registerTaskRoutes } from './tasks/routes.ts'
 import { registerReviewRoutes } from './reviews/routes.ts'
+import { fetchProbe, type CoolifyClient, type HttpProbe } from './monitors/coolify.ts'
+import { ProjectMonitors } from './monitors/monitor.ts'
+import { registerMonitorRoutes } from './monitors/routes.ts'
 import { PrReviewer } from './reviews/reviewer.ts'
 import { registerRoutineRoutes } from './routines/routes.ts'
 import { RoutineRunner } from './routines/runner.ts'
@@ -60,6 +63,9 @@ export interface BuildOptions {
   routineLimits?: { inactivityMs?: number; maxMs?: number }
   // Ajustes do revisor de PRs (testes: sem espera entre tentativas).
   reviewer?: { retrySeconds?: number }
+  // Vigias do Coolify: cliente só de leitura (null = não configurado) e o GET das URLs de saúde.
+  coolify?: CoolifyClient | null
+  probe?: HttpProbe
 }
 
 // O banco fica numa pasta só do servidor, fora do alcance dos usuários dos agentes.
@@ -166,6 +172,13 @@ export async function buildApp(options: BuildOptions): Promise<{ app: FastifyIns
     retrySeconds: options.reviewer?.retrySeconds
   })
   registerReviewRoutes(app, ctx, reviews)
+  const monitors = new ProjectMonitors(ctx, {
+    pollSeconds: options.config.monitorPollSeconds,
+    coolify: options.coolify ?? null,
+    probe: options.probe ?? fetchProbe,
+    warn: (error, message) => app.log.warn(error, message)
+  })
+  registerMonitorRoutes(app, ctx, monitors)
   // Telegram de quem já vinculou a conta: o agente pessoal, com o cofre.
   const personal = new PersonalAgent(ctx, chat, routines, { inactivityMs: options.routineLimits?.inactivityMs })
   ctx.notifier.onMessage((user, message, chatId) => personal.handleMessage(user, message, chatId))
