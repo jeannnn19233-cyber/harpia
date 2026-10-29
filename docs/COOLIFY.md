@@ -71,6 +71,11 @@ O mesmo servidor roda o Clarumi. Para o Harpia nunca disputar recursos com ele, 
 Com os agentes de IA ligados, conte cerca de 1 GB de memória por agente aberto ao mesmo tempo
 (por exemplo, 4 CPUs e 6 GB para 3 pessoas com 2 agentes cada).
 
+O revisor de PRs roda as suítes do projeto dentro do container. A integração do Clarumi sobe um
+Postgres por suíte e usa até 1 GB por processo do Jest: conte mais **3 GB e 2 CPUs** por revisor
+rodando a integração ao mesmo tempo (o Harpia roda no máximo `HARPIA_MAX_CONCURRENT_RUNS`
+execuções juntas).
+
 ## 5. Deploy e primeiro acesso
 
 1. Clique em **Deploy**. O Coolify usa o `HEALTHCHECK` do Dockerfile (`/api/health`) para saber
