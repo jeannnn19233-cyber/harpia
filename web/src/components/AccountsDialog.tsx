@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { REVIEW_MODE_LABELS, REVIEW_MODES, type AgentAccounts, type ReviewMode, type User } from '../../../shared/types.ts'
+import { CHAT_PROVIDER_LABELS, REVIEW_MODE_LABELS, REVIEW_MODES, type AgentAccounts, type ChatProvider, type ReviewMode, type User } from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { useHarpia } from '../lib/store.ts'
 import { Dialog } from './Dialogs.tsx'
@@ -123,6 +123,74 @@ function CodexSuggestions() {
   )
 }
 
+const STEP_LABELS: Record<string, string> = {
+  server: 'Servidor',
+  user: 'Seu usuário no servidor',
+  login: 'Login',
+  program: 'Programa',
+  reply: 'Resposta de verdade'
+}
+
+// Testa a corrente inteira de cada agente e diz em qual etapa ela quebra.
+function AgentDiagnosis() {
+  const [live, setLive] = useState(false)
+  const [running, setRunning] = useState<ChatProvider | null>(null)
+  const [results, setResults] = useState<Partial<Record<ChatProvider, { key: string; ok: boolean; detail: string }[] | string>>>({})
+  const run = async (provider: ChatProvider) => {
+    setRunning(provider)
+    try {
+      const { steps } = await api.diagnoseAgent(provider, live)
+      setResults((current) => ({ ...current, [provider]: steps }))
+    } catch (err) {
+      setResults((current) => ({ ...current, [provider]: (err as Error).message }))
+    } finally {
+      setRunning(null)
+    }
+  }
+  return (
+    <div className="mb-4 space-y-3 rounded-lg border border-zinc-800 px-4 py-3">
+      <div>
+        <p className="text-sm font-medium">Diagnóstico dos agentes</p>
+        <p className="text-xs text-zinc-400">Se o agente não responde, teste aqui: o Harpia confere cada etapa e mostra onde parou.</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {(['claude', 'codex'] as const).map((provider) => (
+          <button key={provider} className="btn-outline py-1.5" disabled={running !== null} onClick={() => void run(provider)}>
+            {running === provider ? 'Testando…' : `Testar ${CHAT_PROVIDER_LABELS[provider]}`}
+          </button>
+        ))}
+        <label className="flex items-center gap-1.5 text-xs text-zinc-400">
+          <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
+          Teste completo (manda uma mensagem curta e gasta um pouco da cota)
+        </label>
+      </div>
+      {(['claude', 'codex'] as const).map((provider) => {
+        const result = results[provider]
+        if (!result) return null
+        return (
+          <div key={provider} className="rounded border border-zinc-800 px-3 py-2 text-xs">
+            <p className="mb-1 font-medium text-zinc-300">{CHAT_PROVIDER_LABELS[provider]}</p>
+            {typeof result === 'string' ? (
+              <p className="text-rose-300">{result}</p>
+            ) : (
+              <ul className="space-y-1">
+                {result.map((step) => (
+                  <li key={step.key} className={step.ok ? 'text-zinc-300' : 'text-rose-300'}>
+                    {step.ok ? '✅' : '❌'} <b>{STEP_LABELS[step.key] ?? step.key}:</b> {step.detail}
+                  </li>
+                ))}
+                {result.every((step) => step.ok) && !live && (
+                  <li className="text-zinc-500">Para conferir a resposta de verdade, marque "Teste completo" e teste de novo.</li>
+                )}
+              </ul>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function AccountsDialog({ onClose }: { onClose: () => void }) {
   const [accounts, setAccounts] = useState<AgentAccounts | null>(null)
   const [sessionId, setSessionId] = useState<number | null>(null)
@@ -165,6 +233,7 @@ export function AccountsDialog({ onClose }: { onClose: () => void }) {
           <p className="text-sm">{status(accounts?.codex)}</p>
         </div>
       </div>
+      <AgentDiagnosis />
       <p className="mb-3 text-sm text-zinc-400">
         Cada pessoa usa a própria assinatura. O login fica guardado na sua pasta no servidor, que só os seus agentes
         enxergam.

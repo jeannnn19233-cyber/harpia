@@ -1,4 +1,5 @@
 import { CHAT_PROVIDER_LABELS, type ChatItem, type ChatModel, type ChatProvider, type PermissionMode, type User } from '../../../shared/types.ts'
+import { agentsDisabledReason } from '../agents/workspace.ts'
 import { getUser } from '../auth/users.ts'
 import { getMemory } from '../memory/store.ts'
 import { getProject } from '../projects/store.ts'
@@ -56,6 +57,96 @@ export class ChatManager {
     this.lister = lister
     this.sweeper = setInterval(() => this.shutdownIdle(), 60 * 1000)
     this.sweeper.unref()
+  }
+
+  // Diagnóstico dos agentes de uma pessoa, etapa por etapa, para achar onde a corrente quebra:
+  // servidor, usuário no servidor, login, programa e (com "live") uma resposta de verdade.
+  async diagnose(user: User, provider: ChatProvider, live: boolean): Promise<DiagnosisStep[]> {
+    const steps: DiagnosisStep[] = []
+    const name = provider === 'claude' ? 'Claude Code' : 'Codex'
+    const add = (key: DiagnosisStep['key'], ok: boolean, detail: string) => {
+      steps.push({ key, ok, detail })
+      return ok
+    }
+    const disabled = agentsDisabledReason(this.ctx)
+    if (!add('server', !disabled, disabled ?? 'Os agentes estão ligados neste servidor.')) return steps
+    try {
+      await this.ctx.agents.prepareUser(user)
+      add('user', true, 'Sua pasta e seu usuário no servidor estão prontos.')
+    } catch (error) {
+      add('user', false, `Não consegui preparar seu usuário no servidor: ${(error as Error).message.slice(0, 300)}`)
+      return steps
+    }
+    const accounts = await this.ctx.agents.accounts(user)
+    if (
+      !add(
+        'login',
+        accounts[provider],
+        accounts[provider]
+          ? `Há um login do ${name} guardado na sua pasta.`
+          : `O ${name} não está conectado na sua conta. Em "Minhas IAs", abra o seu terminal e clique em "Conectar ${name === 'Claude Code' ? 'Claude Code' : 'Codex'}".`
+      )
+    ) {
+      return steps
+    }
+    const cwd = this.ctx.agents.homeDir(user)
+    try {
+      const models = await withTimeout(this.lister({ provider, user, cwd }), 45000, `O ${name} não respondeu em 45 s ao listar os modelos.`)
+      add('program', true, `O ${name} abriu com o seu usuário e oferece ${models.length} modelo(s): ${models.map((model) => model.label).join(', ')}.`)
+    } catch (error) {
+      add('program', false, `O ${name} não abriu direito: ${(error as Error).message.slice(0, 400)}`)
+      return steps
+    }
+    if (!live) return steps
+    try {
+      const folder = await this.ctx.agents.prepareFolder(user, 'diagnostico')
+      const reply = await withTimeout(this.ping(provider, user, folder), 120000, `O ${name} não respondeu em 2 minutos.`)
+      add('reply', /\bok\b/i.test(reply), reply ? `O ${name} respondeu: "${reply.slice(0, 200)}"` : `O ${name} terminou sem responder nada.`)
+    } catch (error) {
+      add('reply', false, (error as Error).message.slice(0, 600))
+    }
+    return steps
+  }
+
+  // Uma mensagem curta de verdade ("responda ok"), com o modelo mais barato da conta.
+  private ping(provider: ChatProvider, user: User, cwd: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let text = ''
+      let settled = false
+      const finish = (error: string | null) => {
+        if (settled) return
+        settled = true
+        adapter.close()
+        if (error) reject(new Error(error))
+        else resolve(text.trim())
+      }
+      const adapter = this.factory({
+        provider,
+        user,
+        cwd,
+        resumeId: null,
+        permissionMode: 'ask',
+        model: provider === 'claude' ? 'haiku' : null,
+        policy: provider === 'claude' ? { tools: [], roots: [cwd] } : null,
+        bare: provider === 'claude',
+        instructions: 'Teste de conexão do Harpia. Responda apenas com a palavra ok, sem usar ferramentas.',
+        hooks: {
+          onSession: () => undefined,
+          onTextDelta: () => undefined,
+          onTextDone: (_key, value) => {
+            if (value.trim()) text = value
+          },
+          onToolStart: () => undefined,
+          onToolEnd: () => undefined,
+          requestApproval: async () => 'deny',
+          onNotice: () => undefined,
+          onSuggestion: () => undefined,
+          onTurnEnd: (error) => finish(error),
+          onExit: (error) => finish(error ?? (text ? null : 'O agente encerrou sem responder.'))
+        }
+      })
+      adapter.send('Responda apenas com a palavra: ok').catch((error: Error) => finish(error.message))
+    })
   }
 
   // Ao iniciar, nenhuma conversa está rodando: as que estavam trabalhando foram interrompidas.
@@ -182,6 +273,11 @@ export class ChatManager {
   async setPermissionMode(chat: StoredChat, mode: PermissionMode): Promise<void> {
     this.publish(updateChat(this.ctx.db, chat.id, { permissionMode: mode }, this.ctx.now()))
     await this.runtimes.get(chat.id)?.adapter.setPermissionMode(mode)
+  }
+
+  async setEffort(chat: StoredChat, effort: string | null): Promise<void> {
+    this.publish(updateChat(this.ctx.db, chat.id, { effort }, this.ctx.now()))
+    await this.runtimes.get(chat.id)?.adapter.setEffort(effort)
   }
 
   async setModel(chat: StoredChat, model: string | null): Promise<void> {
@@ -334,6 +430,7 @@ export class ChatManager {
       resumeId: chat.providerSessionId,
       permissionMode: chat.permissionMode,
       model: chat.model,
+      effort: chat.effort,
       policy: chat.policy,
       instructions: this.instructionsFor(chat),
       hooks: this.hooksFor(chat.id, runtime)
@@ -492,4 +589,26 @@ export class ChatManager {
     if (item) this.publishItem(item)
     return item
   }
+}
+
+export interface DiagnosisStep {
+  key: 'server' | 'user' | 'login' | 'program' | 'reply'
+  ok: boolean
+  detail: string
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
 }

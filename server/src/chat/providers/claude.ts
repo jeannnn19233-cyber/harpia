@@ -1,6 +1,7 @@
 import {
   query,
   type CanUseTool,
+  type EffortLevel,
   type HookCallback,
   type Options,
   type PermissionMode as SdkPermissionMode,
@@ -218,6 +219,20 @@ function spawner(spawnAsUser: SpawnAsUser, cwd: string) {
     spawnAsUser({ command: options.command, args: options.args, cwd: options.cwd ?? cwd, env: claudeEnv(options.env) }) as unknown as SpawnedProcess
 }
 
+const CLAUDE_EFFORTS: readonly string[] = ['low', 'medium', 'high', 'xhigh', 'max']
+
+export function claudeEffort(effort: string | null | undefined): EffortLevel | undefined {
+  return effort && CLAUDE_EFFORTS.includes(effort) ? (effort as EffortLevel) : undefined
+}
+
+// "claude-opus-5-5" vira "Opus 5.5": o atalho "opus" da lista passa a dizer qual Opus é.
+export function modelVersionName(model: string | undefined): string | null {
+  const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/.exec(model ?? '')
+  if (!match) return null
+  const family = match[1].charAt(0).toUpperCase() + match[1].slice(1)
+  return `${family} ${match[2]}${match[3] ? `.${match[3]}` : ''}`
+}
+
 // Pergunta ao Claude Code da pessoa quais modelos a conta dela oferece. Não gasta tokens.
 export async function listClaudeModels(spawnAsUser: SpawnAsUser, cwd: string): Promise<ChatModel[]> {
   const queue = new MessageQueue()
@@ -229,7 +244,18 @@ export async function listClaudeModels(spawnAsUser: SpawnAsUser, cwd: string): P
     const models = await session.supportedModels()
     return models
       .filter((model) => model.value !== 'default')
-      .map((model) => ({ id: model.value, label: model.displayName, description: model.description }))
+      .map((model) => {
+        const version = modelVersionName(model.resolvedModel ?? model.value)
+        // O nome da lista às vezes é só a família ("Opus"); com a versão real, a pessoa sabe o que usa.
+        const label = version && !/\d/.test(model.displayName) ? version : model.displayName
+        return {
+          id: model.value,
+          label,
+          description: model.description,
+          efforts: model.supportsEffort ? (model.supportedEffortLevels ?? []) : [],
+          defaultEffort: null
+        }
+      })
   } finally {
     queue.close()
     session.close()
@@ -283,6 +309,7 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
         cwd: input.cwd,
         resume: input.resumeId ?? undefined,
         model: input.model ?? undefined,
+        effort: claudeEffort(input.effort),
         includePartialMessages: true,
         // Depois de cada vez, o Claude sugere a próxima mensagem (quase grátis: usa o cache da conversa).
         promptSuggestions: true,
@@ -335,6 +362,11 @@ export function createClaudeProvider(input: ProviderInput, spawnAsUser: SpawnAsU
     async setModel(model) {
       input.model = model
       await running?.setModel(model ?? undefined)
+    },
+    async setEffort(effort) {
+      input.effort = effort
+      // Na sessão aberta, vale a partir da próxima vez; numa sessão nova, entra no início.
+      await running?.applyFlagSettings({ effortLevel: claudeEffort(effort) ?? null })
     },
     close() {
       closed = true

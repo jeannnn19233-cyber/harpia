@@ -110,6 +110,7 @@ const scripted: ProviderFactory = (input) => {
     },
     async setPermissionMode() {},
     async setModel() {},
+    async setEffort() {},
     close() {}
   }
 }
@@ -214,10 +215,10 @@ const { app } = await buildApp({
   chatModels: async ({ provider }) =>
     provider === 'claude'
       ? [
-          { id: 'opus', label: 'Opus', description: 'O mais capaz' },
-          { id: 'sonnet', label: 'Sonnet', description: 'Equilibrado' }
+          { id: 'opus', label: 'Opus 5.5', description: 'O mais capaz', efforts: ['low', 'medium', 'high', 'xhigh', 'max'] },
+          { id: 'sonnet', label: 'Sonnet 5.5', description: 'Equilibrado', efforts: ['low', 'medium', 'high'] }
         ]
-      : [{ id: 'gpt-codex', label: 'GPT Codex', description: 'Para programar' }],
+      : [{ id: 'gpt-codex', label: 'GPT Codex', description: 'Para programar', efforts: ['minimal', 'low', 'medium', 'high'], defaultEffort: 'medium' }],
   git: {
     ...fakeGit,
     fetchPull: async () => 'abc1234def5678',

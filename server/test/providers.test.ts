@@ -95,8 +95,8 @@ describe('adaptador do Codex', () => {
   it('lista os modelos da conta da pessoa (model/list)', async () => {
     const models = await listCodexModels(() => spawn(process.execPath, [fakeServer], { stdio: ['pipe', 'pipe', 'pipe'] }), '/home')
     expect(models).toEqual([
-      { id: 'gpt-codex', label: 'GPT Codex', description: 'Para programar' },
-      { id: 'gpt-mini', label: 'gpt-mini', description: 'Rápido' }
+      { id: 'gpt-codex', label: 'GPT Codex', description: 'Para programar', efforts: ['low', 'high'], defaultEffort: 'low' },
+      { id: 'gpt-mini', label: 'gpt-mini', description: 'Rápido', efforts: [], defaultEffort: null }
     ])
   })
 

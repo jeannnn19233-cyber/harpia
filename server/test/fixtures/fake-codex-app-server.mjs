@@ -14,7 +14,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       id: message.id,
       result: {
         data: [
-          { id: 'a', model: 'gpt-codex', displayName: 'GPT Codex', description: 'Para programar', isDefault: true },
+          { id: 'a', model: 'gpt-codex', displayName: 'GPT Codex', description: 'Para programar', isDefault: true, supportedReasoningEfforts: [{ reasoningEffort: 'low', description: '' }, { reasoningEffort: 'high', description: '' }], defaultReasoningEffort: 'low' },
           { id: 'b', model: 'gpt-mini', displayName: '', description: 'Rápido', isDefault: false }
         ],
         nextCursor: null

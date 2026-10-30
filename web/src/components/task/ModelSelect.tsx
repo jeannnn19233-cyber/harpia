@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Chat, ChatModel, ChatProvider } from '../../../../shared/types.ts'
+import { EFFORT_LABELS, EFFORT_LEVELS, type Chat, type ChatModel, type ChatProvider } from '../../../../shared/types.ts'
 import { api } from '../../lib/api.ts'
 
 // A lista vem da conta de cada pessoa (perguntada ao Claude Code ou ao Codex) e muda pouco.
@@ -63,4 +63,45 @@ export function ModelPicker({
 
 export function ModelSelect({ chat, onChange }: { chat: Chat; onChange: (model: string | null) => void }) {
   return <ModelPicker provider={chat.provider} value={chat.model} onChange={onChange} />
+}
+
+// Níveis de esforço do modelo escolhido; com o modelo padrão, os que algum modelo da conta aceita.
+export function effortsFor(models: ChatModel[], model: string | null): { levels: string[]; fallback: string | null } {
+  const chosen = model ? models.find((item) => item.id === model) : undefined
+  const source = chosen ? [chosen] : models
+  const levels = new Set(source.flatMap((item) => item.efforts ?? []))
+  return {
+    levels: EFFORT_LEVELS.filter((level) => levels.has(level)),
+    fallback: chosen?.defaultEffort ?? null
+  }
+}
+
+// Quanto o modelo pensa antes de responder. Some quando o modelo não tem essa escolha.
+export function EffortSelect({ chat, onChange }: { chat: Chat; onChange: (effort: string | null) => void }) {
+  const [models, setModels] = useState<ChatModel[]>([])
+  useEffect(() => {
+    let current = true
+    void loadModels(chat.provider).then((result) => current && setModels(result.models))
+    return () => {
+      current = false
+    }
+  }, [chat.provider])
+  const { levels, fallback } = effortsFor(models, chat.model)
+  if (levels.length === 0 && !chat.effort) return null
+  const options = chat.effort && !levels.includes(chat.effort as (typeof levels)[number]) ? [chat.effort, ...levels] : levels
+  return (
+    <select
+      className="input w-auto max-w-36 py-1 text-xs"
+      value={chat.effort ?? ''}
+      title="Esforço: quanto o modelo pensa antes de responder. Mais esforço, respostas mais cuidadosas e mais lentas. Vale a partir da próxima mensagem."
+      onChange={(e) => onChange(e.target.value || null)}
+    >
+      <option value="">{fallback ? `Esforço padrão (${EFFORT_LABELS[fallback] ?? fallback})` : 'Esforço padrão'}</option>
+      {options.map((level) => (
+        <option key={level} value={level}>
+          {EFFORT_LABELS[level] ?? level}
+        </option>
+      ))}
+    </select>
+  )
 }

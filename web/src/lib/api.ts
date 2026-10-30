@@ -137,7 +137,7 @@ export const api = {
     request<{ chat: Chat }>('PATCH', `/api/chats/${id}`, { permissionMode }),
   generalChats: () => request<{ chats: Chat[] }>('GET', '/api/chats'),
   createGeneralChat: (provider: ChatProvider) => request<{ chat: Chat }>('POST', '/api/chats', { provider }),
-  updateChat: (id: number, input: { model?: string | null; shared?: boolean; title?: string }) =>
+  updateChat: (id: number, input: { model?: string | null; effort?: string | null; shared?: boolean; title?: string }) =>
     request<{ chat: Chat }>('PATCH', `/api/chats/${id}`, input),
   deleteChat: (id: number) => request<{ ok: true }>('DELETE', `/api/chats/${id}`),
   models: (provider: ChatProvider) =>
@@ -148,6 +148,8 @@ export const api = {
   projectLearnings: (projectId: number) => request<{ learnings: Learning[] }>('GET', `/api/projects/${projectId}/learnings`),
   applyLearning: (id: number, text?: string) => request<{ learning: Learning }>('POST', `/api/learnings/${id}/apply`, text ? { text } : {}),
   dismissLearning: (id: number) => request<{ learning: Learning }>('POST', `/api/learnings/${id}/dismiss`, {}),
+  diagnoseAgent: (provider: ChatProvider, live: boolean) =>
+    request<{ steps: { key: string; ok: boolean; detail: string }[] }>('POST', '/api/me/agents/diagnose', { provider, live }),
   updateMe: (input: { githubLogin?: string | null; codexSuggestions?: boolean; reviewMode?: ReviewMode; preferredReviewerId?: number | null }) =>
     request<{ user: User }>('PATCH', '/api/me', input),
   connectGitHub: (token: string) => request<{ user: User }>('PUT', '/api/me/github', { token }),

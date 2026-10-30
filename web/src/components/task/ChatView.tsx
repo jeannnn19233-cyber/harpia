@@ -10,7 +10,7 @@ import { api } from '../../lib/api.ts'
 import { useHarpia } from '../../lib/store.ts'
 import { Avatar } from '../Avatar.tsx'
 import { Icon } from '../Icon.tsx'
-import { ModelSelect } from './ModelSelect.tsx'
+import { EffortSelect, ModelSelect } from './ModelSelect.tsx'
 import { RichText } from './RichText.tsx'
 
 function ToolCard({ item }: { item: Extract<ChatItem, { kind: 'tool' }> }) {
@@ -165,7 +165,10 @@ export function ChatView({ chatId }: { chatId: number }) {
           </p>
         </div>
         {mine && chat.status !== 'closed' && (
-          <ModelSelect chat={chat} onChange={(model) => void run(async () => upsertChats([(await api.updateChat(chat.id, { model })).chat]))} />
+          <>
+            <ModelSelect chat={chat} onChange={(model) => void run(async () => upsertChats([(await api.updateChat(chat.id, { model })).chat]))} />
+            <EffortSelect chat={chat} onChange={(effort) => void run(async () => upsertChats([(await api.updateChat(chat.id, { effort })).chat]))} />
+          </>
         )}
         {mine && chat.status !== 'closed' ? (
           <select

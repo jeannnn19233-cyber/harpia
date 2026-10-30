@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { CHAT_PROVIDERS, PERMISSION_MODES, type User } from '../../../shared/types.ts'
+import { CHAT_PROVIDERS, EFFORT_LEVELS, PERMISSION_MODES, type User } from '../../../shared/types.ts'
 import { requireUser } from '../auth/guard.ts'
 import {
   ensureAgentsEnabled,
@@ -44,6 +44,7 @@ const updateSchema = z
   .object({
     permissionMode: z.enum(PERMISSION_MODES).optional(),
     model: modelSchema.optional(),
+    effort: z.enum(EFFORT_LEVELS).nullable().optional(),
     shared: z.boolean().optional(),
     title: z.string().trim().min(1).max(120).optional()
   })
@@ -157,6 +158,17 @@ export function registerChatRoutes(app: FastifyInstance, ctx: AppContext, manage
     }
   })
 
+  // Diagnóstico dos agentes da própria pessoa (Minhas IAs). Com "live", manda uma mensagem curta
+  // de verdade e gasta um pouco da cota.
+  const diagnoseSchema = z.object({ provider: z.enum(CHAT_PROVIDERS), live: z.boolean().default(false) })
+  app.post('/api/me/agents/diagnose', async (request) => {
+    const user = requireUser(request)
+    const { provider, live } = parse(diagnoseSchema, request.body)
+    const steps = await manager.diagnose(user, provider, live)
+    for (const step of steps) if (!step.ok) app.log.warn({ provider, step: step.key, detail: step.detail }, 'diagnóstico dos agentes')
+    return { steps }
+  })
+
   app.get('/api/chats/:id', async (request) => {
     const chat = loadChat((request.params as { id: string }).id, requireUser(request))
     return { chat: publicChat(chat), items: listItems(ctx.db, chat.id) }
@@ -200,6 +212,7 @@ export function registerChatRoutes(app: FastifyInstance, ctx: AppContext, manage
     }
     if (input.permissionMode) await manager.setPermissionMode(chat, input.permissionMode)
     if (input.model !== undefined) await manager.setModel(chat, input.model)
+    if (input.effort !== undefined) await manager.setEffort(chat, input.effort)
     if (input.shared !== undefined) manager.setShared(chat, input.shared)
     if (input.title) manager.rename(chat, input.title)
     return { chat: publicChat(getChat(ctx.db, chat.id) ?? chat) }

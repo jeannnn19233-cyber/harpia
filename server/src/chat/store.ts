@@ -13,6 +13,7 @@ interface ChatRow {
   provider_session_id: string | null
   suggestion: string | null
   model: string | null
+  effort: string | null
   shared: number
   origin: ChatOrigin
   policy: string | null
@@ -60,6 +61,7 @@ function toChat(row: ChatRow): StoredChat {
     branch: row.branch,
     suggestion: row.suggestion,
     model: row.model,
+    effort: row.effort,
     shared: row.shared === 1,
     origin: row.origin,
     policy: row.policy ? (JSON.parse(row.policy) as AutomationPolicy) : null,
@@ -186,6 +188,7 @@ export function updateChat(
     providerSessionId: string
     suggestion: string | null
     model: string | null
+    effort: string | null
     shared: boolean
   }>,
   now: Date
@@ -197,6 +200,7 @@ export function updateChat(
     providerSessionId: 'provider_session_id',
     suggestion: 'suggestion',
     model: 'model',
+    effort: 'effort',
     shared: 'shared'
   }
   const sets: string[] = []

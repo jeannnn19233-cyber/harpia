@@ -472,6 +472,10 @@ const MIGRATIONS: string[] = [
   ALTER TABLE tasks ADD COLUMN external_id TEXT;
   ALTER TABLE tasks ADD COLUMN external_hash TEXT;
   CREATE UNIQUE INDEX tasks_external ON tasks(project_id, external_id) WHERE external_id IS NOT NULL;
+  `,
+  // 15: nível de esforço (raciocínio) escolhido em cada conversa; null usa o padrão do modelo.
+  `
+  ALTER TABLE chats ADD COLUMN effort TEXT;
   `
 ]
 

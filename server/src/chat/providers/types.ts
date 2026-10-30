@@ -29,6 +29,8 @@ export interface ProviderAdapter {
   setPermissionMode(mode: PermissionMode): Promise<void>
   // Troca o modelo da conversa (null volta ao padrão da conta). Vale a partir da próxima mensagem.
   setModel(model: string | null): Promise<void>
+  // Troca o nível de esforço (null volta ao padrão do modelo). Vale a partir da próxima mensagem.
+  setEffort(effort: string | null): Promise<void>
   close(): void
 }
 
@@ -39,6 +41,7 @@ export interface ProviderInput {
   resumeId: string | null
   permissionMode: PermissionMode
   model: string | null
+  effort?: string | null
   // Execução sem ninguém para aprovar: ferramentas e pastas fixas, nada de pedido de aprovação.
   policy: AutomationPolicy | null
   // Chamada enxuta (vigia, resumos, sugestões): só as instruções como prompt de sistema, sem o do

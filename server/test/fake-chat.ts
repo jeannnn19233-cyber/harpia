@@ -41,6 +41,11 @@ export class FakeProvider implements ProviderAdapter {
     this.model = model
   }
 
+  effort: string | null = null
+  async setEffort(effort: string | null): Promise<void> {
+    this.effort = effort
+  }
+
   close(): void {
     this.closed = true
   }

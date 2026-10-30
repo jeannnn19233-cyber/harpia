@@ -195,6 +195,8 @@ export interface Chat {
   suggestion: string | null
   // Modelo escolhido pela pessoa; null usa o padrão da conta dela.
   model: string | null
+  // Esforço escolhido (EFFORT_LEVELS); null usa o padrão do modelo.
+  effort: string | null
   // Conversas fora das tasks são privadas; com shared, a equipe acompanha (só leitura).
   // Conversas de task são sempre visíveis para a equipe.
   shared: boolean
@@ -374,6 +376,21 @@ export interface ChatModel {
   id: string
   label: string
   description: string
+  // Níveis de esforço que o modelo aceita (vazio: o modelo não tem essa escolha) e o padrão dele.
+  efforts?: string[]
+  defaultEffort?: string | null
+}
+
+// Nível de esforço (quanto o modelo pensa antes de responder). Claude: low a max; Codex: minimal a xhigh.
+export const EFFORT_LEVELS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+export const EFFORT_LABELS: Record<string, string> = {
+  none: 'Sem raciocínio',
+  minimal: 'Mínimo',
+  low: 'Baixo',
+  medium: 'Médio',
+  high: 'Alto',
+  xhigh: 'Muito alto',
+  max: 'Máximo'
 }
 
 interface ChatItemBase {

@@ -129,8 +129,22 @@ export function listCodexModels(spawnAsUser: SpawnAsUser, cwd: string, timeoutMs
         clearTimeout(timer)
         const error = message.error as { message?: string } | undefined
         if (error) return reject(new Error(error.message ?? 'O Codex não listou os modelos.'))
-        const data = ((message.result as Json | undefined)?.data ?? []) as { model: string; displayName?: string; description?: string }[]
-        resolve(data.map((model) => ({ id: model.model, label: model.displayName || model.model, description: model.description ?? '' })))
+        const data = ((message.result as Json | undefined)?.data ?? []) as {
+          model: string
+          displayName?: string
+          description?: string
+          supportedReasoningEfforts?: { reasoningEffort: string }[]
+          defaultReasoningEffort?: string
+        }[]
+        resolve(
+          data.map((model) => ({
+            id: model.model,
+            label: model.displayName || model.model,
+            description: model.description ?? '',
+            efforts: (model.supportedReasoningEfforts ?? []).map((option) => option.reasoningEffort),
+            defaultEffort: model.defaultReasoningEffort ?? null
+          }))
+        )
       }
     })
     send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientInfo: CLIENT_INFO, capabilities: {} } })
@@ -252,7 +266,9 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
         threadId: thread,
         input: [{ type: 'text', text, text_elements: [] }],
         approvalPolicy: APPROVAL_POLICY[input.permissionMode],
-        ...(input.model ? { model: input.model } : {})
+        ...(input.model ? { model: input.model } : {}),
+        // O Codex aceita trocar o esforço a cada mensagem (vale para as seguintes também).
+        ...(input.effort ? { effort: input.effort } : {})
       })) as { turn?: { id?: string } }
       if (response.turn?.id) {
         turnId = response.turn.id
@@ -278,6 +294,10 @@ export function createCodexProvider(input: ProviderInput, spawnAsUser: SpawnAsUs
     async setPermissionMode(mode) {
       // Vale a partir da próxima mensagem.
       input.permissionMode = mode
+    },
+    async setEffort(effort) {
+      // Vale a partir da próxima mensagem (o turn/start leva o esforço escolhido).
+      input.effort = effort
     },
     async setModel(model) {
       // Vale a partir da próxima mensagem (o turn/start leva o modelo escolhido).
