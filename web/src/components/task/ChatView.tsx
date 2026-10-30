@@ -10,7 +10,8 @@ import { api } from '../../lib/api.ts'
 import { useHarpia } from '../../lib/store.ts'
 import { Avatar } from '../Avatar.tsx'
 import { Icon } from '../Icon.tsx'
-import { EffortSelect, ModelSelect } from './ModelSelect.tsx'
+import { Menu } from '../Menu.tsx'
+import { ModelEffortMenu } from './ModelSelect.tsx'
 import { RichText } from './RichText.tsx'
 
 function ToolCard({ item }: { item: Extract<ChatItem, { kind: 'tool' }> }) {
@@ -80,6 +81,12 @@ function ApprovalCard({
       )}
     </div>
   )
+}
+
+const PERMISSION_HINTS: Record<PermissionMode, string> = {
+  ask: 'pergunta antes de cada ação',
+  edits: 'edita arquivos sozinho; pergunta o resto',
+  auto: 'faz tudo sem perguntar'
 }
 
 export function ChatView({ chatId }: { chatId: number }) {
@@ -165,24 +172,23 @@ export function ChatView({ chatId }: { chatId: number }) {
           </p>
         </div>
         {mine && chat.status !== 'closed' && (
-          <>
-            <ModelSelect chat={chat} onChange={(model) => void run(async () => upsertChats([(await api.updateChat(chat.id, { model })).chat]))} />
-            <EffortSelect chat={chat} onChange={(effort) => void run(async () => upsertChats([(await api.updateChat(chat.id, { effort })).chat]))} />
-          </>
+          <ModelEffortMenu
+            chat={chat}
+            onChange={(choice) => void run(async () => upsertChats([(await api.updateChat(chat.id, choice)).chat]))}
+          />
         )}
         {mine && chat.status !== 'closed' ? (
-          <select
-            className="input w-auto py-1 text-xs"
-            value={chat.permissionMode}
+          <Menu
             title="O quanto o agente pode fazer sem pedir aprovação"
-            onChange={(e) => run(() => api.setPermissionMode(chat.id, e.target.value as PermissionMode))}
-          >
-            {PERMISSION_MODES.map((mode) => (
-              <option key={mode} value={mode}>
-                {PERMISSION_MODE_LABELS[mode]}
-              </option>
-            ))}
-          </select>
+            label={PERMISSION_MODE_LABELS[chat.permissionMode]}
+            options={PERMISSION_MODES.map((mode) => ({
+              key: mode,
+              label: PERMISSION_MODE_LABELS[mode],
+              hint: PERMISSION_HINTS[mode],
+              checked: chat.permissionMode === mode,
+              onSelect: () => void run(() => api.setPermissionMode(chat.id, mode as PermissionMode))
+            }))}
+          />
         ) : (
           !mine && (
             <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Acompanhando · só leitura</span>
