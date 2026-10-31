@@ -84,7 +84,7 @@ export class ChatManager {
         accounts[provider],
         accounts[provider]
           ? `Há um login do ${name} guardado na sua pasta.`
-          : `O ${name} não está conectado na sua conta. Em "Minhas IAs", abra o seu terminal e clique em "Conectar ${name === 'Claude Code' ? 'Claude Code' : 'Codex'}".`
+          : `O ${name} não está conectado na sua conta. Em "Minhas IAs", clique em "Conectar ${name}".`
       )
     ) {
       return steps

@@ -121,7 +121,16 @@ Isso significa que **quem entra no Harpia consegue rodar comandos no servidor**.
    Harpia, e nunca monte o socket do Docker (`/var/run/docker.sock`) nele.
 
 Depois, adicione `HARPIA_TERMINALS=on` e faça um novo deploy. Cada pessoa abre **Minhas IAs**
-e conecta a própria conta do Claude Code e do Codex.
+e conecta a própria conta do Claude Code e do Codex, sem terminal:
+
+- **Claude Code:** "Conectar Claude Code" → abrir a página do Claude → autorizar → copiar o
+  código que a página mostra e colar no Harpia.
+- **Codex:** "Conectar Codex" → abrir a página da OpenAI → digitar o código que o Harpia mostra.
+  A tela fica verde sozinha. Se a OpenAI recusar o código, ative o login por código de
+  dispositivo nas configurações de segurança do ChatGPT.
+
+Por trás, o servidor roda `claude auth login` e `codex login --device-auth` com o usuário Linux da
+pessoa. Quem preferir ainda pode fazer o mesmo pelo terminal, em "Prefere conectar pelo terminal?".
 
 ### Como os agentes ficam isolados
 

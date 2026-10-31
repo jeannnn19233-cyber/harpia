@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { CHAT_PROVIDER_LABELS, REVIEW_MODE_LABELS, REVIEW_MODES, type AgentAccounts, type ChatProvider, type ReviewMode, type User } from '../../../shared/types.ts'
+import {
+  CHAT_PROVIDER_LABELS,
+  REVIEW_MODE_LABELS,
+  REVIEW_MODES,
+  type AgentAccounts,
+  type AgentLoginState,
+  type ChatProvider,
+  type ReviewMode,
+  type User
+} from '../../../shared/types.ts'
 import { api } from '../lib/api.ts'
 import { useHarpia } from '../lib/store.ts'
 import { Dialog } from './Dialogs.tsx'
 import { TerminalView, type TerminalControls } from './TerminalView.tsx'
 
-// "Minhas IAs": cada pessoa conecta a própria conta do Claude Code e do Codex no servidor.
 // GitHub de cada pessoa: o revisor de PRs dela publica, corrige e aprova com este token, em nome dela.
 function GitHubAccount() {
   const { me, setMe, users } = useHarpia()
@@ -191,22 +199,156 @@ function AgentDiagnosis() {
   )
 }
 
-export function AccountsDialog({ onClose }: { onClose: () => void }) {
-  const [accounts, setAccounts] = useState<AgentAccounts | null>(null)
+const PROVIDER_NAMES: Record<ChatProvider, string> = { claude: 'Claude Code', codex: 'Codex' }
+
+const PROVIDER_ABOUT: Record<ChatProvider, string> = {
+  claude: 'Com a sua assinatura do Claude (Pro ou Max).',
+  codex: 'Com a sua conta do ChatGPT (Plus, Pro, Business…).'
+}
+
+// Um cartão por agente: conectar em dois passos, sem terminal.
+function AgentConnect({
+  provider,
+  connected,
+  login,
+  onChange
+}: {
+  provider: ChatProvider
+  connected: boolean
+  login: AgentLoginState | null
+  onChange: () => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [code, setCode] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const name = PROVIDER_NAMES[provider]
+  const run = async (action: () => Promise<unknown>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await action()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+      await onChange()
+    }
+  }
+  const active = login && (login.stage === 'open_link' || login.stage === 'checking') ? login : null
+  const failed = login?.stage === 'failed' ? login.error : null
+
+  return (
+    <div className="space-y-3 rounded-lg border border-zinc-800 px-4 py-3" data-testid={`connect-${provider}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">{name}</p>
+          <p className="text-xs text-zinc-500">{PROVIDER_ABOUT[provider]}</p>
+        </div>
+        {connected && !active ? <span className="whitespace-nowrap text-sm text-emerald-400">✅ Conectado</span> : !active && <span className="whitespace-nowrap text-sm text-zinc-500">Não conectado</span>}
+      </div>
+
+      {!active &&
+        (connected ? (
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-ghost py-1 text-xs" disabled={busy} onClick={() => void run(() => api.startAgentLogin(provider))}>
+              Conectar outra conta
+            </button>
+            <button
+              className="btn-ghost py-1 text-xs text-rose-300"
+              disabled={busy}
+              onClick={() => confirm(`Desconectar o ${name}? Seus agentes param de funcionar até você conectar de novo.`) && void run(() => api.agentLogout(provider))}
+            >
+              Desconectar
+            </button>
+          </div>
+        ) : (
+          <button className="btn-primary" disabled={busy} onClick={() => void run(() => api.startAgentLogin(provider))}>
+            {busy ? 'Abrindo…' : `Conectar ${name}`}
+          </button>
+        ))}
+
+      {active && (
+        <ol className="space-y-3 text-sm">
+          <li>
+            <p className="mb-1.5">
+              <b>1.</b> {provider === 'claude' ? 'Abra a página do Claude e clique em "Autorizar".' : 'Abra a página da OpenAI e entre com a sua conta do ChatGPT.'}
+            </p>
+            <a className="btn-primary inline-block" href={active.url ?? '#'} target="_blank" rel="noreferrer">
+              {provider === 'claude' ? 'Abrir a página do Claude' : 'Abrir a página da OpenAI'}
+            </a>
+          </li>
+          {provider === 'claude' ? (
+            <li>
+              <p className="mb-1.5">
+                <b>2.</b> A página mostra um código. Copie e cole aqui:
+              </p>
+              <form
+                className="flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void run(async () => {
+                    await api.sendClaudeCode(code)
+                    setCode('')
+                  })
+                }}
+              >
+                <input
+                  className="input min-w-0 flex-1 font-mono"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Cole o código aqui"
+                  value={code}
+                  disabled={active.stage === 'checking' || busy}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+                <button className="btn-primary" disabled={busy || code.trim().length < 10}>
+                  {busy ? 'Conferindo…' : 'Conectar'}
+                </button>
+              </form>
+            </li>
+          ) : (
+            <li>
+              <p className="mb-1.5">
+                <b>2.</b> Digite este código na página:
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-lg tracking-widest text-emerald-300">{active.deviceCode}</code>
+                <button
+                  className="btn-ghost py-1 text-xs"
+                  onClick={() =>
+                    void navigator.clipboard.writeText(active.deviceCode ?? '').then(() => {
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    })
+                  }
+                >
+                  {copied ? 'Copiado' : 'Copiar'}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-zinc-400">Esperando você autorizar… esta tela atualiza sozinha. O código vale 15 minutos.</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Se a página recusar o código, ative o login por código de dispositivo nas configurações de segurança do ChatGPT e tente de novo.
+              </p>
+            </li>
+          )}
+          <li>
+            <button className="btn-ghost py-1 text-xs" disabled={busy} onClick={() => void run(() => api.cancelAgentLogin(provider))}>
+              Cancelar
+            </button>
+          </li>
+        </ol>
+      )}
+      {(error ?? failed) && <p className="text-xs text-rose-400">{error ?? failed}</p>}
+    </div>
+  )
+}
+
+// Caminho antigo, para quem prefere: o terminal pessoal com os comandos de login.
+function TerminalFallback() {
   const [sessionId, setSessionId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const terminal = useRef<TerminalControls>(null)
-
-  const refresh = () =>
-    api
-      .accounts()
-      .then(({ accounts }) => setAccounts(accounts))
-      .catch((err: Error) => setError(err.message))
-
-  useEffect(() => {
-    void refresh()
-  }, [])
-
   const openTerminal = async () => {
     try {
       setSessionId((await api.openPersonalTerminal()).session.id)
@@ -215,62 +357,81 @@ export function AccountsDialog({ onClose }: { onClose: () => void }) {
       setError((err as Error).message)
     }
   }
+  return (
+    <details className="mb-4 rounded-lg border border-zinc-800 px-4 py-3 text-sm">
+      <summary className="cursor-pointer text-zinc-400">Prefere conectar pelo terminal?</summary>
+      <div className="mt-3 space-y-3">
+        {sessionId === null ? (
+          <button className="btn-outline py-1.5" onClick={() => void openTerminal()}>
+            Abrir meu terminal
+          </button>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-outline py-1.5" onClick={() => terminal.current?.type('claude auth login\r')}>
+                Login do Claude Code
+              </button>
+              <button className="btn-outline py-1.5" onClick={() => terminal.current?.type('codex login --device-auth\r')}>
+                Login do Codex
+              </button>
+            </div>
+            <div className="h-72 overflow-hidden rounded-lg border border-zinc-800">
+              <TerminalView sessionId={sessionId} readOnly={false} controls={terminal} />
+            </div>
+          </>
+        )}
+        {error && <p className="text-sm text-rose-400">{error}</p>}
+      </div>
+    </details>
+  )
+}
 
-  const status = (connected: boolean | undefined) =>
-    connected ? <span className="text-emerald-400">Conectado</span> : <span className="text-zinc-500">Não conectado</span>
+export function AccountsDialog({ onClose }: { onClose: () => void }) {
+  const [accounts, setAccounts] = useState<AgentAccounts | null>(null)
+  const [logins, setLogins] = useState<Record<ChatProvider, AgentLoginState | null>>({ claude: null, codex: null })
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = async () => {
+    try {
+      const result = await api.agentLogins()
+      setAccounts(result.accounts)
+      setLogins(result.logins)
+      setError(null)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
+
+  // Enquanto a pessoa autoriza na outra aba, confere de tempos em tempos se já conectou.
+  const waiting = Object.values(logins).some((login) => login?.stage === 'open_link')
+  useEffect(() => {
+    if (!waiting) return
+    const timer = setInterval(() => void refresh(), 2000)
+    return () => clearInterval(timer)
+  }, [waiting])
 
   return (
     <Dialog title="Minhas IAs" onClose={onClose} wide>
-      <GitHubAccount />
-      <CodexSuggestions />
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-zinc-800 px-4 py-3">
-          <p className="text-sm font-medium">Claude Code</p>
-          <p className="text-sm">{status(accounts?.claude)}</p>
-        </div>
-        <div className="rounded-lg border border-zinc-800 px-4 py-3">
-          <p className="text-sm font-medium">Codex</p>
-          <p className="text-sm">{status(accounts?.codex)}</p>
-        </div>
-      </div>
-      <AgentDiagnosis />
       <p className="mb-3 text-sm text-zinc-400">
-        Cada pessoa usa a própria assinatura. O login fica guardado na sua pasta no servidor, que só os seus agentes
-        enxergam.
+        Cada pessoa usa a própria assinatura. O login fica guardado na sua pasta no servidor, que só os seus agentes enxergam.
       </p>
-
-      {sessionId === null ? (
-        <button className="btn-primary" onClick={() => void openTerminal()}>
-          Abrir meu terminal para conectar
-        </button>
+      {error ? (
+        <p className="mb-4 rounded-lg border border-rose-900 px-4 py-3 text-sm text-rose-300">{error}</p>
       ) : (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-outline py-1.5" onClick={() => terminal.current?.type('claude\r')}>
-              Conectar Claude Code
-            </button>
-            <button className="btn-outline py-1.5" onClick={() => terminal.current?.type('codex login --device-auth\r')}>
-              Conectar Codex
-            </button>
-            <button className="btn-ghost py-1.5" onClick={() => void refresh()}>
-              Verificar conexão
-            </button>
-          </div>
-          <ul className="list-disc space-y-1 pl-5 text-xs text-zinc-400">
-            <li>
-              <b>Claude Code:</b> escolha entrar com a sua assinatura, abra o link que aparecer, autorize e cole o código
-              de volta aqui. Depois digite <code>/exit</code>.
-            </li>
-            <li>
-              <b>Codex:</b> abra o link mostrado, digite o código que aparece aqui e autorize com a sua conta.
-            </li>
-          </ul>
-          <div className="h-80 overflow-hidden rounded-lg border border-zinc-800">
-            <TerminalView sessionId={sessionId} readOnly={false} controls={terminal} />
-          </div>
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          {(['claude', 'codex'] as const).map((provider) => (
+            <AgentConnect key={provider} provider={provider} connected={!!accounts?.[provider]} login={logins[provider]} onChange={refresh} />
+          ))}
         </div>
       )}
-      {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+      <AgentDiagnosis />
+      <GitHubAccount />
+      <CodexSuggestions />
+      <TerminalFallback />
     </Dialog>
   )
 }

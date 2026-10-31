@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { AGENT_KINDS, type AgentKind, type Task, type TaskEvent, type User } from '../../../shared/types.ts'
+import { AGENT_KINDS, CHAT_PROVIDERS, type AgentKind, type ChatProvider, type Task, type TaskEvent, type User } from '../../../shared/types.ts'
 import { requireUser } from '../auth/guard.ts'
 import { getUser } from '../auth/users.ts'
 import type { AppContext } from '../context.ts'
 import { transaction } from '../db/index.ts'
 import { HttpError, parse, parseId } from '../http/errors.ts'
 import { getTask, insertEvent } from '../tasks/store.ts'
+import { AgentLogins } from './login.ts'
 import {
   countRunningForUser,
   findRunningAccountSession,
@@ -110,7 +111,58 @@ export function registerAgentRoutes(app: FastifyInstance, ctx: AppContext): void
     return { accounts: await ctx.agents.accounts(user) }
   })
 
-  // Terminal pessoal, na pasta da pessoa, para conectar o Claude Code e o Codex.
+  // Conectar sem terminal: o Harpia roda o login como a pessoa e mostra o link na tela.
+  const logins = new AgentLogins(ctx.agents)
+  app.addHook('preClose', async () => logins.close())
+  const providerParam = (params: unknown): ChatProvider => {
+    const provider = (params as { provider?: string }).provider
+    if (!CHAT_PROVIDERS.includes(provider as ChatProvider)) throw new HttpError(404, 'Agente desconhecido.')
+    return provider as ChatProvider
+  }
+
+  app.get('/api/me/agents/login', async (request) => {
+    const user = requireUser(request)
+    ensureEnabled()
+    return {
+      accounts: await ctx.agents.accounts(user),
+      logins: { claude: logins.state(user, 'claude'), codex: logins.state(user, 'codex') }
+    }
+  })
+
+  app.post('/api/me/agents/login/:provider', async (request) => {
+    const user = requireUser(request)
+    ensureEnabled()
+    return { login: await logins.start(user, providerParam(request.params)) }
+  })
+
+  const codeSchema = z.object({ code: z.string().trim().min(10, 'Cole o código inteiro que a página mostrou.').max(2000) })
+  app.post('/api/me/agents/login/claude/code', async (request) => {
+    const user = requireUser(request)
+    ensureEnabled()
+    const { code } = parse(codeSchema, request.body)
+    const login = await logins.submitCode(user, code)
+    if (!login) throw new HttpError(409, 'Este login já terminou ou venceu. Clique em "Conectar" de novo.')
+    return { login }
+  })
+
+  app.delete('/api/me/agents/login/:provider', async (request) => {
+    const user = requireUser(request)
+    logins.cancel(user, providerParam(request.params))
+    return { ok: true }
+  })
+
+  app.post('/api/me/agents/logout/:provider', async (request) => {
+    const user = requireUser(request)
+    ensureEnabled()
+    try {
+      await logins.logout(user, providerParam(request.params))
+    } catch (error) {
+      throw new HttpError(502, (error as Error).message)
+    }
+    return { accounts: await ctx.agents.accounts(user) }
+  })
+
+  // Terminal pessoal, na pasta da pessoa: o caminho antigo de conectar, para quem prefere.
   app.post('/api/me/terminal', async (request) => {
     const user = requireUser(request)
     ensureEnabled()

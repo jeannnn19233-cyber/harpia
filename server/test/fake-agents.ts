@@ -93,8 +93,12 @@ export class FakeAgentSystem implements AgentSystem {
     }
   }
 
-  spawnPiped(): ChildProcess {
-    throw new Error('Os testes usam provedores de chat falsos.')
+  // Programas rodados como a pessoa (o login dos agentes). Os chats usam provedores falsos.
+  piped: ((input: { user: User; command: string; args: string[] }) => ChildProcess) | null = null
+
+  spawnPiped(input: { user: User; command: string; args: string[]; cwd: string }): ChildProcess {
+    if (!this.piped) throw new Error('Os testes usam provedores de chat falsos.')
+    return this.piped(input)
   }
 
   changes: ChangedFile[] = []

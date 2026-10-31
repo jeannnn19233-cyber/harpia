@@ -1,5 +1,6 @@
 import type {
   AgentAccounts,
+  AgentLoginState,
   AgentKind,
   AgentSession,
   AgentsStatus,
@@ -116,6 +117,12 @@ export const api = {
 
   agentsStatus: () => request<AgentsStatus>('GET', '/api/agents/status'),
   accounts: () => request<{ accounts: AgentAccounts }>('GET', '/api/me/accounts'),
+  agentLogins: () =>
+    request<{ accounts: AgentAccounts; logins: Record<ChatProvider, AgentLoginState | null> }>('GET', '/api/me/agents/login'),
+  startAgentLogin: (provider: ChatProvider) => request<{ login: AgentLoginState }>('POST', `/api/me/agents/login/${provider}`, {}),
+  sendClaudeCode: (code: string) => request<{ login: AgentLoginState }>('POST', '/api/me/agents/login/claude/code', { code }),
+  cancelAgentLogin: (provider: ChatProvider) => request<{ ok: true }>('DELETE', `/api/me/agents/login/${provider}`),
+  agentLogout: (provider: ChatProvider) => request<{ accounts: AgentAccounts }>('POST', `/api/me/agents/logout/${provider}`, {}),
   openPersonalTerminal: () => request<{ session: AgentSession }>('POST', '/api/me/terminal', {}),
   runningSessions: () => request<{ sessions: AgentSession[] }>('GET', '/api/sessions/running'),
   taskSessions: (taskId: number) => request<{ sessions: AgentSession[] }>('GET', `/api/tasks/${taskId}/sessions`),

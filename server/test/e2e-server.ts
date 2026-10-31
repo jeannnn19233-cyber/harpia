@@ -1,8 +1,11 @@
 // Servidor para testes de interface: agentes de mentira, sem internet nem tmux.
 // Uso: node --disable-warning=ExperimentalWarning server/test/e2e-server.ts <pasta-de-dados>
+import type { ChildProcess } from 'node:child_process'
+import { EventEmitter } from 'node:events'
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { PassThrough } from 'node:stream'
 import { buildApp } from '../src/app.ts'
 import type { ProviderFactory } from '../src/chat/providers/types.ts'
 import type { GitHubRepo } from '../src/github/client.ts'
@@ -176,6 +179,31 @@ agents.changes = [
   { path: 'src/checkout/index.ts', status: 'M', additions: 42, deletions: 3 }
 ]
 agents.uncommitted = true
+// Login dos agentes: imita o Claude (pede o código colado) e o Codex (conecta sozinho depois de uns segundos).
+agents.piped = ({ user, command }) => {
+  const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null as number | null })
+  const finish = (code: number) => {
+    if (code === 0) agents.accountsByUser.set(user.id, { ...(agents.accountsByUser.get(user.id) ?? { claude: false, codex: false }), [command]: true })
+    child.exitCode = code
+    child.emit('exit', code)
+  }
+  Object.assign(child, { kill: () => child.exitCode === null && finish(143) })
+  setTimeout(() => {
+    if (command === 'claude') child.stdout.write("If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&state=e2e\nPaste code here if prompted > ")
+    else {
+      child.stdout.write('1. Open this link\n   https://auth.openai.com/codex/device\n\n2. Enter this one-time code (expires in 15 minutes)\n   AB12-CD34E\n')
+      setTimeout(() => finish(0), 3000)
+    }
+  }, 50)
+  child.stdin.on('data', (chunk: Buffer) =>
+    setTimeout(() => {
+      const ok = String(chunk).trim().startsWith('certo')
+      if (!ok) child.stderr.write("Login failed: That code wasn't accepted. It may be incomplete, expired, already used, or from an earlier sign-in attempt.\n")
+      finish(ok ? 0 : 1)
+    }, 300)
+  )
+  return child as unknown as ChildProcess
+}
 const { app } = await buildApp({
   config: {
     dataDir,

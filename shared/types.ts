@@ -157,6 +157,20 @@ export interface AgentAccounts {
   codex: boolean
 }
 
+// Login de um agente feito pelo próprio Harpia, sem terminal: o servidor roda o login como a
+// pessoa e mostra o link (e, no Codex, o código que ela digita na página da OpenAI).
+export interface AgentLoginState {
+  provider: 'claude' | 'codex'
+  // open_link: esperando a pessoa autorizar na página; checking: conferindo o código colado.
+  stage: 'open_link' | 'checking' | 'done' | 'failed'
+  url: string | null
+  // Código que a pessoa digita na página (só no Codex).
+  deviceCode: string | null
+  // O Claude mostra um código depois de autorizar, e ele volta colado aqui.
+  needsCode: boolean
+  error: string | null
+}
+
 // Conversas com os agentes de IA (chat), a forma principal de trabalhar numa task.
 export const CHAT_PROVIDERS = ['claude', 'codex'] as const
 export type ChatProvider = (typeof CHAT_PROVIDERS)[number]
